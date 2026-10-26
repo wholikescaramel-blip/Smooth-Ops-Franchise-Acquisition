@@ -1,8 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import '@fontsource-variable/inter';
-import '@fontsource-variable/space-grotesk';
-import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/figtree/400.css';
+import '@fontsource/figtree/500.css';
+import '@fontsource/figtree/600.css';
+import '@fontsource/figtree/700.css';
 import './index.css';
 import App from './App';
 
@@ -14,10 +15,11 @@ class Boundary extends React.Component<{ children: React.ReactNode }, { err: Err
   render() {
     if (this.state.err)
       return (
-        <div className="p-8 text-slate-200">
-          <h1 className="font-display text-xl">Something went wrong</h1>
-          <p className="mt-2 text-sm text-slate-400">{this.state.err.message}</p>
-          <button className="mt-4 rounded-lg bg-amber-brand px-4 py-2 text-sm font-semibold text-ink-950" onClick={() => location.reload()}>Reload</button>
+        <div className="mx-auto max-w-xl p-8">
+          <h1 className="text-2xl font-semibold">Something went wrong</h1>
+          <p className="mt-2 text-mute">{this.state.err.message}</p>
+          <p className="mt-2 text-mute">Reload the page and try again. If it keeps happening, upload the file again or use the sample data.</p>
+          <button className="mt-4 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white" onClick={() => location.reload()}>Reload the page</button>
         </div>
       );
     return this.props.children;

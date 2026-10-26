@@ -1,37 +1,44 @@
 import { useMemo } from 'react';
 import { OUTCOMES, type Outcome } from '../engine';
 import { select, setFilter, useStore } from '../state/store';
-import { Badge, Card, OUTCOME_COLOR, PRIORITY_COLOR, SectionTitle } from './ui';
+import { Badge, field, Mark, SHAPE_NAME } from './ui';
 import { CITIES } from '../data/cityGeo';
 
-export function Kpis() {
+/** Row of outcome tabs under the header. Each shows its shape and count, and filters the map and the list. */
+export function OutcomeTabs() {
   const r = useStore((s) => s.result);
-  const items: { label: string; v: string | number; c?: string; o?: Outcome }[] = [
-    { label: 'Applications', v: r.order.length },
-    ...OUTCOMES.map((o) => ({ label: o, v: r.counts[o], c: OUTCOME_COLOR[o], o })),
-    { label: 'Slots filled', v: `${r.slotsFilled}/${r.slotsTotal}` },
-    { label: 'Data flags', v: r.flagCount, c: r.flagCount ? '#f5b942' : undefined },
-  ];
   const filter = useStore((s) => s.filter);
+  const total = r.order.length;
+  const items: { o: Outcome | null; label: string; n: number }[] = [{ o: null, label: 'Everyone', n: total }, ...OUTCOMES.map((o) => ({ o, label: o, n: r.counts[o] }))];
   return (
-    <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-9">
-      {items.map((i) => (
-        <button key={i.label} disabled={!i.o} onClick={() => i.o && setFilter(filter.outcome === i.o ? { ...filter, outcome: undefined } : { ...filter, outcome: i.o })}
-          className={`rounded-xl border bg-ink-850/80 px-3 py-2 text-left ${filter.outcome === i.o && i.o ? 'border-white/60' : 'border-ink-600/70'} ${i.o ? 'hover:border-ink-500' : 'cursor-default'}`}>
-          <div className="font-display text-xl font-semibold leading-none" style={{ color: i.c ?? '#e7edf5' }}>{i.v}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">{i.label}</div>
-        </button>
-      ))}
+    <div role="group" aria-label="Filter by outcome" className="flex gap-2 overflow-x-auto pb-1">
+      {items.map((i) => {
+        const on = (filter.outcome ?? null) === i.o;
+        return (
+          <button
+            key={i.label}
+            onClick={() => setFilter(i.o ? (on ? { ...filter, outcome: undefined } : { ...filter, outcome: i.o }) : { ...filter, outcome: undefined })}
+            aria-pressed={on}
+            title={i.o ? `${i.o}: drawn as a ${SHAPE_NAME[i.o]}` : 'Show every applicant'}
+            className={`flex shrink-0 flex-col items-center gap-1 border-b-2 px-4 pb-2 pt-1 text-xs font-semibold ${on ? 'border-brand text-ink' : 'border-transparent text-mute hover:border-line hover:text-ink'}`}
+          >
+            {i.o ? <Mark o={i.o} size={26} /> : <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-tint text-sm font-bold text-brand">{total}</span>}
+            <span>{i.label}{i.o ? ` ${i.n}` : ''}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-export function ApplicantTable() {
+/** Applicants as cards, like a list of places. Clicking one opens its decision. */
+export function ApplicantList() {
   const ds = useStore((s) => s.ds);
   const result = useStore((s) => s.result);
   const filter = useStore((s) => s.filter);
   const selected = useStore((s) => s.selected);
   const changed = useStore((s) => s.changed);
+  const prev = useStore((s) => s.prev);
   const rows = useMemo(
     () =>
       ds.applications.filter((a) => {
@@ -42,82 +49,86 @@ export function ApplicantTable() {
   );
   const any = filter.outcome || filter.city || filter.territory;
   return (
-    <Card className="p-3">
-      <SectionTitle right={any ? <button onClick={() => setFilter({})} className="text-[11px] text-slate-400 underline hover:text-white">clear filters</button> : undefined}>Applicants · {rows.length}</SectionTitle>
-      <div className="mb-2 flex flex-wrap gap-2">
-        <select aria-label="Filter by outcome" value={filter.outcome ?? ''} onChange={(e) => setFilter({ ...filter, outcome: (e.target.value || undefined) as Outcome | undefined })} className="rounded-lg border border-ink-500 bg-ink-800 px-2 py-1 text-xs text-slate-200">
-          <option value="">All outcomes</option>{OUTCOMES.map((o) => <option key={o}>{o}</option>)}
-        </select>
-        <select aria-label="Filter by city" value={filter.city ?? ''} onChange={(e) => setFilter({ ...filter, city: e.target.value || undefined })} className="rounded-lg border border-ink-500 bg-ink-800 px-2 py-1 text-xs text-slate-200">
-          <option value="">All cities</option>{CITIES.map((c) => <option key={c.name}>{c.name}</option>)}
-        </select>
-        <select aria-label="Filter by territory" value={filter.territory ?? ''} onChange={(e) => setFilter({ ...filter, territory: e.target.value || undefined })} className="rounded-lg border border-ink-500 bg-ink-800 px-2 py-1 text-xs text-slate-200">
-          <option value="">All territories</option>{ds.territories.map((t) => <option key={t.id}>{t.id}</option>)}
-        </select>
+    <section aria-label="Applicants">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xl font-bold">{rows.length} {rows.length === 1 ? 'applicant' : 'applicants'}{any ? ' match' : ''}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <select aria-label="Filter by city" value={filter.city ?? ''} onChange={(e) => setFilter({ ...filter, city: e.target.value || undefined })} className={field}>
+            <option value="">Any city</option>{CITIES.map((c) => <option key={c.name}>{c.name}</option>)}
+          </select>
+          <select aria-label="Filter by territory" value={filter.territory ?? ''} onChange={(e) => setFilter({ ...filter, territory: e.target.value || undefined })} className={field}>
+            <option value="">Any territory</option>{ds.territories.map((t) => <option key={t.id}>{t.id}</option>)}
+          </select>
+          {any && <button onClick={() => setFilter({})} className="text-sm font-semibold text-brand underline underline-offset-4">Show everyone</button>}
+        </div>
       </div>
-      <div className="max-h-[420px] overflow-auto rounded-lg border border-ink-700">
-        <table className="w-full min-w-[640px] text-left text-xs">
-          <thead className="sticky top-0 bg-ink-800 text-[10px] uppercase tracking-wider text-slate-500">
-            <tr><th className="px-2 py-2">ID</th><th>Name</th><th>City · pin</th><th>Outcome</th><th className="text-right">Score</th><th className="pl-3">Why</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((a) => {
-              const d = result.decisions[a.id];
-              return (
-                <tr key={a.id} onClick={() => select(a.id)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && select(a.id)} className={`cursor-pointer border-t border-ink-700 hover:bg-ink-800 ${selected === a.id ? 'bg-ink-800' : ''} ${changed.includes(a.id) ? 'row-flash' : ''}`}>
-                  <td className="px-2 py-1.5 font-mono text-slate-200">{a.id}</td>
-                  <td className="text-slate-300">{a.name}</td>
-                  <td className="font-mono text-[11px] text-slate-400">{a.city ?? '—'} · {a.pinRaw || '—'}</td>
-                  <td><Badge o={d.outcome} small /></td>
-                  <td className="text-right font-mono text-slate-300">{d.score}</td>
-                  <td className="max-w-[280px] truncate pl-3 text-slate-400" title={d.headline}>{d.headline}</td>
-                </tr>
-              );
-            })}
-            {!rows.length && <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-500">No applicants match these filters.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        {rows.map((a) => {
+          const d = result.decisions[a.id];
+          const isChanged = changed.includes(a.id);
+          const was = prev?.decisions[a.id]?.outcome;
+          return (
+            <li key={a.id}>
+              <button
+                onClick={() => select(a.id)}
+                aria-pressed={selected === a.id}
+                className={`block h-full w-full rounded-xl bg-white p-4 text-left shadow-card transition-shadow hover:shadow-float ${selected === a.id ? 'outline outline-2 outline-brand' : ''} ${isChanged ? 'row-flash' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{a.name}</p>
+                    <p className="text-xs text-mute">{a.id}, {a.city ?? 'city unknown'}, pin {a.pinRaw || 'not given'}</p>
+                  </div>
+                  <Badge o={d.outcome} small />
+                </div>
+                <p className="mt-2 line-clamp-2 text-sm">{d.headline}</p>
+                <div className="mt-3 flex items-center justify-between text-xs text-mute">
+                  <span>Score <b className="text-sm text-ink">{d.score}</b> of 100</span>
+                  {isChanged && was && was !== d.outcome && <span className="font-semibold text-ink">Changed from {was}</span>}
+                </div>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {!rows.length && <p className="rounded-xl bg-wash p-6 text-center text-mute">Nobody matches these filters. Choose “Show everyone” to start again.</p>}
+    </section>
   );
 }
 
 export function TerritoryCards() {
   const r = useStore((s) => s.result);
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {r.territories.map((t) => {
-        const pc = PRIORITY_COLOR[t.territory.priority];
-        return (
-          <Card key={t.territory.id} className="p-3">
-            <div className="flex items-center justify-between">
-              <div className="font-display text-sm font-semibold text-white">{t.territory.id} · {t.territory.city}</div>
-              <span className="rounded-full px-2 py-0.5 text-[10px]" style={{ color: pc, border: `1px solid ${pc}66` }}>{t.territory.priority} · Tier {t.territory.tier}</span>
-            </div>
-            <div className="mt-2 flex gap-1" aria-label={`${t.filled} of ${t.territory.slots} slots filled`}>
-              {Array.from({ length: Math.max(t.territory.slots, 0) }).map((_, i) => (
-                <span key={i} className="h-2.5 flex-1 rounded-sm" style={{ background: i < t.filled ? '#3ddc97' : '#2a3544' }} />
+    <div className="grid gap-4 sm:grid-cols-2">
+      {r.territories.map((t) => (
+        <div key={t.territory.id} className="rounded-xl p-4 shadow-card">
+          <div className="flex items-baseline justify-between gap-2">
+            <h3 className="text-lg font-semibold">{t.territory.id}, {t.territory.city}</h3>
+            <span className="text-xs text-mute">{t.territory.priority} priority, tier {t.territory.tier}</span>
+          </div>
+          <div className="mt-2 flex gap-1" role="img" aria-label={`${t.filled} of ${t.territory.slots} slots filled`}>
+            {Array.from({ length: Math.max(t.territory.slots, 0) }).map((_, i) => (
+              <span key={i} className="h-2.5 flex-1 rounded-full" style={{ background: i < t.filled ? '#3F3BB5' : '#DDD' }} />
+            ))}
+            {t.territory.slots === 0 && <span className="text-sm text-mute">Closed: no open slots</span>}
+          </div>
+          <p className="mt-1 text-xs text-mute">{t.filled} of {t.territory.slots} slots filled, {t.territory.pins.length} pins</p>
+          <p className="mt-2 text-sm">{t.winnerWhy}</p>
+          {t.ranking.length > 0 && (
+            <ol className="mt-2 text-sm">
+              {t.ranking.map((x, i) => (
+                <li key={x.id} className="flex items-center gap-2 border-t border-line py-1.5">
+                  <span className="w-4 text-mute">{i + 1}</span>
+                  <button onClick={() => select(x.id)} className="font-semibold text-brand underline underline-offset-2">{x.id}</button>
+                  <span className="text-mute">{x.score}</span>
+                  <Badge o={x.outcome} small />
+                  <span className="truncate text-xs text-mute">{x.note}</span>
+                </li>
               ))}
-              {t.territory.slots === 0 && <span className="text-[11px] text-slate-500">0 open slots (closed)</span>}
-            </div>
-            <div className="mt-1 text-[11px] text-slate-400">{t.filled}/{t.territory.slots} slots filled · {t.territory.pins.length} pins</div>
-            <p className="mt-1.5 text-[11px] text-slate-300">{t.winnerWhy}</p>
-            {t.ranking.length > 0 && (
-              <ol className="mt-2 space-y-0.5 text-[11px]">
-                {t.ranking.map((x, i) => (
-                  <li key={x.id} className="flex items-center gap-2">
-                    <span className="w-3 text-slate-600">{i + 1}</span>
-                    <button onClick={() => select(x.id)} className="font-mono text-slate-200 underline decoration-ink-500">{x.id}</button>
-                    <span className="font-mono text-slate-500">{x.score}</span>
-                    <Badge o={x.outcome} small />
-                    <span className="truncate text-slate-500">{x.note}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </Card>
-        );
-      })}
+            </ol>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -127,29 +138,26 @@ export function DataQuality() {
   const r = useStore((s) => s.result);
   const rows = ds.applications.map((a) => ({ a, flags: r.decisions[a.id].flags })).filter((x) => x.flags.length);
   return (
-    <div className="space-y-3">
+    <div>
       {ds.warnings.length > 0 && (
-        <Card className="p-3">
-          <SectionTitle>File-level notes</SectionTitle>
-          <ul className="space-y-1 text-xs text-slate-300">{ds.warnings.map((w, i) => <li key={i}>• {w}</li>)}</ul>
-        </Card>
+        <div className="mb-5">
+          <h3 className="mb-2 text-lg font-semibold">Notes about the whole file</h3>
+          <ul className="list-disc space-y-1 pl-5">{ds.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+        </div>
       )}
-      <Card className="p-3">
-        <SectionTitle>Flags by application · {rows.length}</SectionTitle>
-        <p className="mb-2 text-[11px] text-slate-500">Nothing is silently dropped: every flagged row still gets an outcome.</p>
-        <ul className="space-y-2">
-          {rows.map(({ a, flags }) => (
-            <li key={a.id} className="rounded-lg border border-ink-700 p-2">
-              <div className="mb-1 flex items-center gap-2"><button onClick={() => select(a.id)} className="font-mono text-xs text-white underline">{a.id}</button><span className="text-xs text-slate-400">{a.name}</span><Badge o={r.decisions[a.id].outcome} small /></div>
-              <ul className="space-y-0.5 text-[11px] text-slate-300">
-                {flags.map((f, i) => <li key={i} className="flex gap-1.5"><span className={f.severity === 'error' ? 'text-o-decline' : f.severity === 'warn' ? 'text-o-hold' : 'text-slate-500'}>▲</span>{f.message}</li>)}
-              </ul>
-            </li>
-          ))}
-          {!rows.length && <li className="text-sm text-slate-400">No data-quality flags. Clean file.</li>}
-        </ul>
-      </Card>
+      <h3 className="text-lg font-semibold">Problems by applicant ({rows.length})</h3>
+      <p className="mb-2 text-mute">Nothing is dropped. Every row with a problem still gets a decision.</p>
+      <ul>
+        {rows.map(({ a, flags }) => (
+          <li key={a.id} className="border-t border-line py-3">
+            <div className="mb-1 flex flex-wrap items-center gap-2"><button onClick={() => select(a.id)} className="font-semibold text-brand underline underline-offset-2">{a.id}</button><span>{a.name}</span><Badge o={r.decisions[a.id].outcome} small /></div>
+            <ul className="space-y-0.5 text-sm">
+              {flags.map((f, i) => <li key={i} className="flex gap-2"><span className="w-16 shrink-0 font-semibold">{f.severity === 'error' ? 'Error' : f.severity === 'warn' ? 'Warning' : 'Note'}</span>{f.message}</li>)}
+            </ul>
+          </li>
+        ))}
+        {!rows.length && <li className="text-mute">No problems found. The file is clean.</li>}
+      </ul>
     </div>
   );
 }
-

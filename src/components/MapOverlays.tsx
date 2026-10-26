@@ -1,58 +1,57 @@
-import { OUTCOMES, type Dataset, type EngineResult } from '../engine';
+import { useEffect, useRef, useState } from 'react';
 import { toggleLayer, type Layers } from '../state/store';
-import { OUTCOME_COLOR } from './ui';
+import { Icon } from './ui';
 
 const LAYER_LABELS: [keyof Layers, string][] = [
-  ['territories', 'Territory hotspots'],
+  ['territories', 'Territories'],
   ['stores', 'Existing stores'],
   ['applicants', 'Applicants'],
-  ['rings', 'Cannibalisation rings'],
-  ['arcs', 'Flow arcs'],
-  ['heat', 'Heat density'],
+  ['rings', 'Spacing rings'],
+  ['arcs', 'Arrows to the pin chosen'],
 ];
 
-/** Floating glass cards over the map: layer switches (top-left) and outcome mix (bottom-right). */
-export function LayerCard({ layers, focus }: { layers: Layers; focus: string }) {
-  return (
-    <div className="absolute left-3 top-3 z-10 w-[190px] rounded-xl border border-white/10 bg-ink-900/70 p-3 shadow-2xl backdrop-blur-md">
-      <div className="font-display text-lg font-semibold leading-tight text-white">{focus === 'state' ? 'Karnataka' : focus}</div>
-      <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-slate-500">Franchise coverage</div>
-      <ul className="space-y-1">
-        {LAYER_LABELS.map(([k, label]) => (
-          <li key={k}>
-            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-300">
-              <input type="checkbox" checked={layers[k]} onChange={() => toggleLayer(k)} className="h-3 w-3 accent-amber-500" />
-              {label}
-            </label>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+export const floatBtn = 'flex h-10 items-center gap-2 rounded-full bg-white px-4 text-sm font-semibold shadow-float hover:bg-wash';
 
-export function StatsCard({ ds, result }: { ds: Dataset; result: EngineResult }) {
-  const n = Math.max(1, ds.applications.length);
+/** Layers menu: what to draw, and whether to show a map or a grid of pins. */
+export function LayersMenu({ layers, view, setView }: { layers: Layers; view: 'map' | 'tiles'; setView: (v: 'map' | 'tiles') => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
   return (
-    <div className="absolute bottom-3 right-3 z-10 hidden w-[250px] rounded-xl border border-white/10 bg-ink-900/70 p-3 shadow-2xl backdrop-blur-md sm:block">
-      <div className="space-y-2.5">
-        {OUTCOMES.map((o) => {
-          const pct = Math.round((result.counts[o] / n) * 100);
-          return (
-            <div key={o}>
-              <div className="flex items-baseline gap-2 text-[12px]">
-                <span className="font-display font-semibold text-white">{pct}%</span>
-                <span className="text-slate-300">{o}</span>
-                <span className="ml-auto font-mono text-[10px] text-slate-500">{result.counts[o]}</span>
-              </div>
-              <div className="mt-0.5 h-[3px] rounded bg-white/10">
-                <div className="h-[3px] rounded" style={{ width: `${pct}%`, background: OUTCOME_COLOR[o], boxShadow: `0 0 6px ${OUTCOME_COLOR[o]}`, transition: 'width 600ms' }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-3 text-[10px] text-slate-500">Based on {ds.applications.length} applications · {result.slotsFilled}/{result.slotsTotal} slots filled</div>
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="true" className={floatBtn}><Icon name="layers" size={18} />Layers</button>
+      {open && (
+        <div className="pop-in absolute right-0 top-12 z-30 w-64 rounded-xl bg-white p-4 shadow-pop">
+          <fieldset>
+            <legend className="mb-2 text-sm font-bold">Show on the map</legend>
+            {LAYER_LABELS.map(([k, label]) => (
+              <label key={k} className="flex cursor-pointer items-center gap-3 py-1.5 text-sm">
+                <input type="checkbox" checked={layers[k]} onChange={() => toggleLayer(k)} className="h-4 w-4 accent-brand" />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          <fieldset className="mt-3 border-t border-line pt-3">
+            <legend className="mb-2 text-sm font-bold">View</legend>
+            {([['map', 'Map'], ['tiles', 'Grid of pins']] as const).map(([v, label]) => (
+              <label key={v} className="flex cursor-pointer items-center gap-3 py-1.5 text-sm">
+                <input type="radio" name="view" checked={view === v} onChange={() => setView(v)} className="h-4 w-4 accent-brand" />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+        </div>
+      )}
     </div>
   );
 }
