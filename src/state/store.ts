@@ -60,13 +60,14 @@ export interface State {
   focus: string; // 'state' or a city name
   layers: Layers;
   save: { status: 'idle' | 'saving' | 'saved' | 'offline'; id: string | null };
+  panelOpen: boolean; // presentational: the slide-in detail panel
 }
 
 const emptyDS: Dataset = { applications: [], territories: [], stores: [], warnings: [] };
 let state: State = {
   phase: 'upload', error: null, fileName: '', baseDS: null, ds: emptyDS, overrides: {}, baseResult: null, result: runEngine(emptyDS),
   prev: null, diff: null, changed: [], log: [], history: [], selected: null, answer: null, filter: {}, tab: 'detail', compare: false,
-  save: { status: 'idle', id: null },
+  save: { status: 'idle', id: null }, panelOpen: false,
   view: 'map', focus: 'state', layers: { territories: true, stores: true, applicants: true, rings: false, arcs: false, heat: false },
 };
 const subs = new Set<() => void>();
@@ -88,7 +89,7 @@ export function loadDataset(ds: Dataset, fileName: string) {
   const r = runEngine(ds);
   set({
     phase: 'app', error: null, fileName, baseDS: ds, ds, overrides: {}, baseResult: r, result: r, prev: null, diff: null, changed: [], log: [], history: [],
-    selected: null, answer: null, filter: {}, tab: 'detail', compare: false, focus: 'state', save: { status: 'idle', id: null },
+    selected: null, answer: null, filter: {}, tab: 'detail', compare: false, focus: 'state', save: { status: 'idle', id: null }, panelOpen: false,
   });
 }
 export const setSave = (save: State['save']) => set({ save });
@@ -99,8 +100,10 @@ export function backToUpload() {
   set({ phase: 'upload', error: null });
 }
 
-export const select = (id: string | null) => set({ selected: id, tab: id ? 'detail' : state.tab });
-export const setTab = (tab: Tab) => set({ tab });
+export const select = (id: string | null) => set({ selected: id, tab: id ? 'detail' : state.tab, panelOpen: id ? true : state.panelOpen });
+export const clearAnswer = () => set({ answer: null });
+export const setPanel = (panelOpen: boolean) => set({ panelOpen });
+export const setTab = (tab: Tab) => set({ tab, panelOpen: true });
 export const setFilter = (filter: Filter) => set({ filter });
 export const setView = (view: 'map' | 'tiles') => set({ view });
 export const setFocus = (focus: string) => set({ focus });
@@ -116,7 +119,7 @@ function commit(ds: Dataset, overrides: Overrides, entry: Omit<LogEntry, 'n' | '
   const log = [...state.log, { ...entry, n: state.log.length + 1, changed: diff.changes.length }];
   set({
     ds, overrides, result, prev: before, diff, changed: diff.changes.map((c) => c.id), log, history,
-    tab: 'changes', answer: answer ?? null, selected: subjects[0] ?? state.selected,
+    tab: 'changes', panelOpen: true, answer: answer ?? null, selected: subjects[0] ?? state.selected,
   });
   return diff;
 }
@@ -171,7 +174,7 @@ function run(intent: Intent) {
       const lines = [`${a.id} (${a.name}) is ${O(d.outcome)}: ${d.headline.replace(/^[^:]*: ?/, '')}`.replace(/\.$/, '') + '.', ...d.reasons.map((r) => '• ' + r), `Decided by: ${d.decidedBy}.`];
       if (d.conditions.length) lines.push('Conditions: ' + d.conditions.join('; ') + '.');
       if (cfs.length) lines.push('It flips to Approved if: ' + cfs.map((c) => c.text).join('  —or—  ') + '.');
-      set({ selected: intent.id, tab: 'detail', answer: { title: `Why is ${a.id} ${O(d.outcome)}?`, lines, tone: d.outcome === 'Approved' ? 'ok' : 'info', focusId: a.id } });
+      set({ panelOpen: true, selected: intent.id, tab: 'detail', answer: { title: `Why is ${a.id} ${O(d.outcome)}?`, lines, tone: d.outcome === 'Approved' ? 'ok' : 'info', focusId: a.id } });
       return;
     }
     case 'counterfactual': {
@@ -179,11 +182,11 @@ function run(intent: Intent) {
       if (!a) return notFound(intent.id);
       const d = result.decisions[intent.id];
       if (d.outcome === 'Approved') {
-        set({ selected: intent.id, tab: 'detail', answer: { title: `${a.id} is already Approved`, lines: [d.reasons[0]], tone: 'ok', focusId: a.id } });
+        set({ panelOpen: true, selected: intent.id, tab: 'detail', answer: { title: `${a.id} is already Approved`, lines: [d.reasons[0]], tone: 'ok', focusId: a.id } });
         return;
       }
       const cfs = counterfactuals(ds, overrides, intent.id);
-      set({ selected: intent.id, tab: 'detail', answer: { title: `What would it take for ${a.id} to be Approved?`, lines: [`Today ${a.id} is ${O(d.outcome)}. Each option below was verified by re-running the engine:`, ...cfs.map((c, i) => `${i + 1}. ${c.text}`)], tone: 'info', focusId: a.id } });
+      set({ panelOpen: true, selected: intent.id, tab: 'detail', answer: { title: `What would it take for ${a.id} to be Approved?`, lines: [`Today ${a.id} is ${O(d.outcome)}. Each option below was verified by re-running the engine:`, ...cfs.map((c, i) => `${i + 1}. ${c.text}`)], tone: 'info', focusId: a.id } });
       return;
     }
     case 'update': {

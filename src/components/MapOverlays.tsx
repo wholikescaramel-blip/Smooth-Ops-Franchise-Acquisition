@@ -1,32 +1,63 @@
-import { OUTCOMES, type Dataset, type EngineResult } from '../engine';
-import { toggleLayer, type Layers } from '../state/store';
-import { OUTCOME_COLOR } from './ui';
+import { useState } from 'react';
+import { OUTCOMES, type Dataset, type EngineResult, type Outcome } from '../engine';
+import { setFilter, toggleLayer, type Filter, type Layers } from '../state/store';
+import { OUTCOME_COLOR, OutcomeIcon } from './ui';
 
 const LAYER_LABELS: [keyof Layers, string][] = [
-  ['territories', 'Territory hotspots'],
+  ['territories', 'Territories'],
   ['stores', 'Existing stores'],
   ['applicants', 'Applicants'],
-  ['rings', 'Cannibalisation rings'],
+  ['rings', 'Spacing rings'],
   ['arcs', 'Flow arcs'],
-  ['heat', 'Heat density'],
+  ['heat', 'Density'],
 ];
 
-/** Floating glass cards over the map: layer switches (top-left) and outcome mix (bottom-right). */
-export function LayerCard({ layers, focus }: { layers: Layers; focus: string }) {
+/** Filter chips: pill toggles with the outcome icon and count. They dim pins on the map, never hide them. */
+export function FilterChips({ result, filter }: { result: EngineResult; filter: Filter }) {
   return (
-    <div className="absolute left-3 top-3 z-10 w-[190px] rounded-xl border border-white/10 bg-ink-900/70 p-3 shadow-2xl backdrop-blur-md">
-      <div className="font-display text-lg font-semibold leading-tight text-white">{focus === 'state' ? 'Karnataka' : focus}</div>
-      <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-slate-500">Franchise coverage</div>
-      <ul className="space-y-1">
-        {LAYER_LABELS.map(([k, label]) => (
-          <li key={k}>
-            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-300">
-              <input type="checkbox" checked={layers[k]} onChange={() => toggleLayer(k)} className="h-3 w-3 accent-amber-500" />
-              {label}
-            </label>
-          </li>
-        ))}
-      </ul>
+    <div className="flex flex-wrap justify-center gap-1.5" role="group" aria-label="Filter by outcome">
+      {OUTCOMES.map((o) => {
+        const on = filter.outcome === o;
+        return (
+          <button
+            key={o}
+            aria-pressed={on}
+            onClick={() => setFilter({ ...filter, outcome: on ? undefined : (o as Outcome) })}
+            className={`inline-flex items-center gap-1.5 rounded-full py-1.5 pl-2 pr-3 text-sm font-medium shadow-float transition ${on ? 'bg-ink text-white' : 'bg-surface text-ink hover:bg-sunken'}`}
+          >
+            <OutcomeIcon o={o} size={16} />
+            {o}
+            <span className={`text-xs ${on ? 'text-white/80' : 'text-muted'}`}>{result.counts[o]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Layers popover. */
+export function LayerMenu({ layers }: { layers: Layers }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="inline-flex items-center gap-2 rounded-full bg-surface px-4 py-2 text-sm font-medium text-ink shadow-float hover:bg-sunken">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" /></svg>
+        Layers
+      </button>
+      {open && (
+        <div className="fade-in absolute left-0 top-full z-30 mt-2 w-52 rounded-lg bg-surface p-3 shadow-float-lg">
+          <ul className="space-y-2">
+            {LAYER_LABELS.map(([k, label]) => (
+              <li key={k}>
+                <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink">
+                  <input type="checkbox" checked={layers[k]} onChange={() => toggleLayer(k)} className="h-4 w-4 accent-[#222B45]" />
+                  {label}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -34,25 +65,25 @@ export function LayerCard({ layers, focus }: { layers: Layers; focus: string }) 
 export function StatsCard({ ds, result }: { ds: Dataset; result: EngineResult }) {
   const n = Math.max(1, ds.applications.length);
   return (
-    <div className="absolute bottom-3 right-3 z-10 hidden w-[250px] rounded-xl border border-white/10 bg-ink-900/70 p-3 shadow-2xl backdrop-blur-md sm:block">
+    <div className="hidden w-[250px] rounded-lg bg-surface p-4 shadow-float md:block">
       <div className="space-y-2.5">
         {OUTCOMES.map((o) => {
           const pct = Math.round((result.counts[o] / n) * 100);
           return (
             <div key={o}>
-              <div className="flex items-baseline gap-2 text-[12px]">
-                <span className="font-display font-semibold text-white">{pct}%</span>
-                <span className="text-slate-300">{o}</span>
-                <span className="ml-auto font-mono text-[10px] text-slate-500">{result.counts[o]}</span>
+              <div className="flex items-baseline gap-2 text-sm">
+                <span className="font-semibold text-ink">{pct}%</span>
+                <span className="text-body">{o}</span>
+                <span className="ml-auto text-xs text-muted">{result.counts[o]}</span>
               </div>
-              <div className="mt-0.5 h-[3px] rounded bg-white/10">
-                <div className="h-[3px] rounded" style={{ width: `${pct}%`, background: OUTCOME_COLOR[o], boxShadow: `0 0 6px ${OUTCOME_COLOR[o]}`, transition: 'width 600ms' }} />
+              <div className="mt-1 h-1.5 rounded-full bg-sunken">
+                <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: OUTCOME_COLOR[o], transition: 'width 500ms' }} />
               </div>
             </div>
           );
         })}
       </div>
-      <div className="mt-3 text-[10px] text-slate-500">Based on {ds.applications.length} applications · {result.slotsFilled}/{result.slotsTotal} slots filled</div>
+      <div className="mt-3 text-xs text-muted">{ds.applications.length} applications · {result.slotsFilled} of {result.slotsTotal} slots filled · {result.flagCount} data flags</div>
     </div>
   );
 }

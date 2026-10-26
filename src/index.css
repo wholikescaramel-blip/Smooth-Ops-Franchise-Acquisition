@@ -2,26 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
-html, body, #root { min-height: 100%; }
-body { @apply bg-ink-950 font-sans text-slate-200 antialiased; }
-::selection { background: #f5b94255; }
-* { scrollbar-width: thin; scrollbar-color: #2a3544 transparent; }
-button:focus-visible, select:focus-visible, input:focus-visible, tr:focus-visible { outline: 2px solid #f5b942; outline-offset: 1px; }
-
-.bg-grid {
-  background-image: linear-gradient(#1c253133 1px, transparent 1px), linear-gradient(90deg, #1c253133 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+/* Design tokens (RGB channels so Tailwind opacity modifiers work). */
+:root {
+  --page: 247 247 248; /* #F7F7F8 */
+  --surface: 255 255 255; /* #FFFFFF */
+  --sunken: 243 243 245; /* #F3F3F5 */
+  --hairline: 228 228 231; /* #E4E4E7 */
+  --text: 72 72 72; /* #484848 */
+  --muted: 107 111 118; /* #6B6F76, 5:1 on white */
+  --ink: 34 43 69; /* #222B45 */
+  --primary: 255 56 92; /* #FF385C focus rings, accents */
+  --primary-strong: 222 31 74; /* #DE1F4A filled buttons with white text (4.77:1) */
+  --o-approved: 31 138 91; /* #1F8A5B */
+  --o-hold: 217 154 0; /* #D99A00 */
+  --o-waitlist: 122 90 248; /* #7A5AF8 */
+  --o-redirect: 27 154 170; /* #1B9AAA */
+  --o-decline: 138 143 152; /* #8A8F98 */
+  --ot-approved: 23 112 74; /* #17704A */
+  --ot-hold: 138 95 0; /* #8A5F00 */
+  --ot-waitlist: 98 68 214; /* #6244D6 */
+  --ot-redirect: 18 113 125; /* #12717D */
+  --ot-decline: 94 99 108; /* #5E636C */
+  color-scheme: light;
 }
 
-@keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.95; } 100% { transform: scale(4.2); opacity: 0; } }
-.pulse-ring { transform-box: fill-box; transform-origin: center; animation: pulse-ring 1.4s ease-out 4; }
+html, body, #root { min-height: 100%; }
+body { @apply bg-page font-sans text-body antialiased; }
+::selection { background: rgb(var(--primary) / 0.25); }
+* { scrollbar-width: thin; scrollbar-color: #d4d4d8 transparent; }
+button, select, input, tr { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 2px; }
+input:focus-visible { outline: none; }
+
+/* Motion only where it shows a change. */
+@keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(3.4); opacity: 0; } }
+.pulse-ring { transform-box: fill-box; transform-origin: center; animation: pulse-ring 1.3s ease-out 1; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-.fade-in { animation: fade-in 260ms ease-out both; }
-@keyframes row-flash { 0%, 60% { background: #f5b94222; } 100% { background: transparent; } }
-.row-flash { animation: row-flash 2.4s ease-out; }
+.fade-in { animation: fade-in 220ms ease-out both; }
+@keyframes slide-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+.slide-in { animation: slide-in 240ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.sheet-in { animation: sheet-in 240ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes row-flash { 0%, 60% { background: rgb(var(--primary) / 0.10); } 100% { background: transparent; } }
+.row-flash { animation: row-flash 2.2s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-ring, .fade-in, .row-flash { animation: none; }
+  .pulse-ring, .fade-in, .slide-in, .sheet-in, .row-flash { animation: none; }
+  * { transition-duration: 0.01ms !important; }
 }

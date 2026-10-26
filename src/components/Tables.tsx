@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { OUTCOMES, type Outcome } from '../engine';
 import { select, setFilter, useStore } from '../state/store';
-import { Badge, Card, OUTCOME_COLOR, PRIORITY_COLOR, SectionTitle } from './ui';
+import { Badge, Card, OUTCOME_COLOR, SectionTitle } from './ui';
 import { CITIES } from '../data/cityGeo';
 
 export function Kpis() {
@@ -10,23 +10,23 @@ export function Kpis() {
     { label: 'Applications', v: r.order.length },
     ...OUTCOMES.map((o) => ({ label: o, v: r.counts[o], c: OUTCOME_COLOR[o], o })),
     { label: 'Slots filled', v: `${r.slotsFilled}/${r.slotsTotal}` },
-    { label: 'Data flags', v: r.flagCount, c: r.flagCount ? '#f5b942' : undefined },
+    { label: 'Data flags', v: r.flagCount, c: r.flagCount ? '#8A5F00' : undefined },
   ];
   const filter = useStore((s) => s.filter);
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-9">
       {items.map((i) => (
         <button key={i.label} disabled={!i.o} onClick={() => i.o && setFilter(filter.outcome === i.o ? { ...filter, outcome: undefined } : { ...filter, outcome: i.o })}
-          className={`rounded-xl border bg-ink-850/80 px-3 py-2 text-left ${filter.outcome === i.o && i.o ? 'border-white/60' : 'border-ink-600/70'} ${i.o ? 'hover:border-ink-500' : 'cursor-default'}`}>
-          <div className="font-display text-xl font-semibold leading-none" style={{ color: i.c ?? '#e7edf5' }}>{i.v}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">{i.label}</div>
+          className={`rounded-xl border bg-surface px-3 py-2 text-left ${filter.outcome === i.o && i.o ? 'border-white/60' : 'border-hair'} ${i.o ? 'hover:border-hair' : 'cursor-default'}`}>
+          <div className="text-xl font-semibold leading-none" style={{ color: i.c ?? '#222B45' }}>{i.v}</div>
+          <div className="mt-1 text-xs text-muted">{i.label}</div>
         </button>
       ))}
     </div>
   );
 }
 
-export function ApplicantTable() {
+export function ApplicantTable({ onPick }: { onPick?: () => void }) {
   const ds = useStore((s) => s.ds);
   const result = useStore((s) => s.result);
   const filter = useStore((s) => s.filter);
@@ -43,38 +43,38 @@ export function ApplicantTable() {
   const any = filter.outcome || filter.city || filter.territory;
   return (
     <Card className="p-3">
-      <SectionTitle right={any ? <button onClick={() => setFilter({})} className="text-[11px] text-slate-400 underline hover:text-white">clear filters</button> : undefined}>Applicants · {rows.length}</SectionTitle>
+      <SectionTitle right={any ? <button onClick={() => setFilter({})} className="text-xs text-muted underline hover:text-ink">clear filters</button> : undefined}>Applicants · {rows.length}</SectionTitle>
       <div className="mb-2 flex flex-wrap gap-2">
-        <select aria-label="Filter by outcome" value={filter.outcome ?? ''} onChange={(e) => setFilter({ ...filter, outcome: (e.target.value || undefined) as Outcome | undefined })} className="rounded-lg border border-ink-500 bg-ink-800 px-2 py-1 text-xs text-slate-200">
+        <select aria-label="Filter by outcome" value={filter.outcome ?? ''} onChange={(e) => setFilter({ ...filter, outcome: (e.target.value || undefined) as Outcome | undefined })} className="rounded-full border border-hair bg-sunken px-2 py-1 text-xs text-ink">
           <option value="">All outcomes</option>{OUTCOMES.map((o) => <option key={o}>{o}</option>)}
         </select>
-        <select aria-label="Filter by city" value={filter.city ?? ''} onChange={(e) => setFilter({ ...filter, city: e.target.value || undefined })} className="rounded-lg border border-ink-500 bg-ink-800 px-2 py-1 text-xs text-slate-200">
+        <select aria-label="Filter by city" value={filter.city ?? ''} onChange={(e) => setFilter({ ...filter, city: e.target.value || undefined })} className="rounded-full border border-hair bg-sunken px-2 py-1 text-xs text-ink">
           <option value="">All cities</option>{CITIES.map((c) => <option key={c.name}>{c.name}</option>)}
         </select>
-        <select aria-label="Filter by territory" value={filter.territory ?? ''} onChange={(e) => setFilter({ ...filter, territory: e.target.value || undefined })} className="rounded-lg border border-ink-500 bg-ink-800 px-2 py-1 text-xs text-slate-200">
+        <select aria-label="Filter by territory" value={filter.territory ?? ''} onChange={(e) => setFilter({ ...filter, territory: e.target.value || undefined })} className="rounded-full border border-hair bg-sunken px-2 py-1 text-xs text-ink">
           <option value="">All territories</option>{ds.territories.map((t) => <option key={t.id}>{t.id}</option>)}
         </select>
       </div>
-      <div className="max-h-[420px] overflow-auto rounded-lg border border-ink-700">
+      <div className="max-h-[420px] overflow-auto rounded-lg border border-hair">
         <table className="w-full min-w-[640px] text-left text-xs">
-          <thead className="sticky top-0 bg-ink-800 text-[10px] uppercase tracking-wider text-slate-500">
+          <thead className="sticky top-0 bg-sunken text-xs text-muted">
             <tr><th className="px-2 py-2">ID</th><th>Name</th><th>City · pin</th><th>Outcome</th><th className="text-right">Score</th><th className="pl-3">Why</th></tr>
           </thead>
           <tbody>
             {rows.map((a) => {
               const d = result.decisions[a.id];
               return (
-                <tr key={a.id} onClick={() => select(a.id)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && select(a.id)} className={`cursor-pointer border-t border-ink-700 hover:bg-ink-800 ${selected === a.id ? 'bg-ink-800' : ''} ${changed.includes(a.id) ? 'row-flash' : ''}`}>
-                  <td className="px-2 py-1.5 font-mono text-slate-200">{a.id}</td>
-                  <td className="text-slate-300">{a.name}</td>
-                  <td className="font-mono text-[11px] text-slate-400">{a.city ?? '—'} · {a.pinRaw || '—'}</td>
+                <tr key={a.id} onClick={() => { select(a.id); onPick?.(); }} tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") { select(a.id); onPick?.(); } }} className={`cursor-pointer border-t border-hair hover:bg-sunken ${selected === a.id ? 'bg-sunken' : ''} ${changed.includes(a.id) ? 'row-flash' : ''}`}>
+                  <td className="px-2 py-1.5 font-mono text-ink">{a.id}</td>
+                  <td className="text-body">{a.name}</td>
+                  <td className="font-mono text-xs text-muted">{a.city ?? '—'} · {a.pinRaw || '—'}</td>
                   <td><Badge o={d.outcome} small /></td>
-                  <td className="text-right font-mono text-slate-300">{d.score}</td>
-                  <td className="max-w-[280px] truncate pl-3 text-slate-400" title={d.headline}>{d.headline}</td>
+                  <td className="text-right font-mono text-body">{d.score}</td>
+                  <td className="max-w-[280px] truncate pl-3 text-muted" title={d.headline}>{d.headline}</td>
                 </tr>
               );
             })}
-            {!rows.length && <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-500">No applicants match these filters.</td></tr>}
+            {!rows.length && <tr><td colSpan={6} className="px-3 py-6 text-center text-muted">No applicants match these filters.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -87,30 +87,29 @@ export function TerritoryCards() {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       {r.territories.map((t) => {
-        const pc = PRIORITY_COLOR[t.territory.priority];
         return (
           <Card key={t.territory.id} className="p-3">
             <div className="flex items-center justify-between">
-              <div className="font-display text-sm font-semibold text-white">{t.territory.id} · {t.territory.city}</div>
-              <span className="rounded-full px-2 py-0.5 text-[10px]" style={{ color: pc, border: `1px solid ${pc}66` }}>{t.territory.priority} · Tier {t.territory.tier}</span>
+              <div className="text-sm font-semibold text-ink">{t.territory.id} · {t.territory.city}</div>
+              <span className="rounded-full bg-sunken px-2.5 py-0.5 text-xs font-medium text-ink">{t.territory.priority} priority · Tier {t.territory.tier}</span>
             </div>
             <div className="mt-2 flex gap-1" aria-label={`${t.filled} of ${t.territory.slots} slots filled`}>
               {Array.from({ length: Math.max(t.territory.slots, 0) }).map((_, i) => (
-                <span key={i} className="h-2.5 flex-1 rounded-sm" style={{ background: i < t.filled ? '#3ddc97' : '#2a3544' }} />
+                <span key={i} className="h-2.5 flex-1 rounded-sm" style={{ background: i < t.filled ? '#1F8A5B' : '#E4E4E7' }} />
               ))}
-              {t.territory.slots === 0 && <span className="text-[11px] text-slate-500">0 open slots (closed)</span>}
+              {t.territory.slots === 0 && <span className="text-xs text-muted">0 open slots (closed)</span>}
             </div>
-            <div className="mt-1 text-[11px] text-slate-400">{t.filled}/{t.territory.slots} slots filled · {t.territory.pins.length} pins</div>
-            <p className="mt-1.5 text-[11px] text-slate-300">{t.winnerWhy}</p>
+            <div className="mt-1 text-xs text-muted">{t.filled}/{t.territory.slots} slots filled · {t.territory.pins.length} pins</div>
+            <p className="mt-1.5 text-xs text-body">{t.winnerWhy}</p>
             {t.ranking.length > 0 && (
-              <ol className="mt-2 space-y-0.5 text-[11px]">
+              <ol className="mt-2 space-y-0.5 text-xs">
                 {t.ranking.map((x, i) => (
                   <li key={x.id} className="flex items-center gap-2">
-                    <span className="w-3 text-slate-600">{i + 1}</span>
-                    <button onClick={() => select(x.id)} className="font-mono text-slate-200 underline decoration-ink-500">{x.id}</button>
-                    <span className="font-mono text-slate-500">{x.score}</span>
+                    <span className="w-3 text-muted">{i + 1}</span>
+                    <button onClick={() => select(x.id)} className="font-mono text-ink underline decoration-hair">{x.id}</button>
+                    <span className="font-mono text-muted">{x.score}</span>
                     <Badge o={x.outcome} small />
-                    <span className="truncate text-slate-500">{x.note}</span>
+                    <span className="truncate text-muted">{x.note}</span>
                   </li>
                 ))}
               </ol>
@@ -131,22 +130,22 @@ export function DataQuality() {
       {ds.warnings.length > 0 && (
         <Card className="p-3">
           <SectionTitle>File-level notes</SectionTitle>
-          <ul className="space-y-1 text-xs text-slate-300">{ds.warnings.map((w, i) => <li key={i}>• {w}</li>)}</ul>
+          <ul className="space-y-1 text-xs text-body">{ds.warnings.map((w, i) => <li key={i}>• {w}</li>)}</ul>
         </Card>
       )}
       <Card className="p-3">
         <SectionTitle>Flags by application · {rows.length}</SectionTitle>
-        <p className="mb-2 text-[11px] text-slate-500">Nothing is silently dropped: every flagged row still gets an outcome.</p>
+        <p className="mb-2 text-xs text-muted">Nothing is silently dropped: every flagged row still gets an outcome.</p>
         <ul className="space-y-2">
           {rows.map(({ a, flags }) => (
-            <li key={a.id} className="rounded-lg border border-ink-700 p-2">
-              <div className="mb-1 flex items-center gap-2"><button onClick={() => select(a.id)} className="font-mono text-xs text-white underline">{a.id}</button><span className="text-xs text-slate-400">{a.name}</span><Badge o={r.decisions[a.id].outcome} small /></div>
-              <ul className="space-y-0.5 text-[11px] text-slate-300">
-                {flags.map((f, i) => <li key={i} className="flex gap-1.5"><span className={f.severity === 'error' ? 'text-o-decline' : f.severity === 'warn' ? 'text-o-hold' : 'text-slate-500'}>▲</span>{f.message}</li>)}
+            <li key={a.id} className="rounded-lg border border-hair p-2">
+              <div className="mb-1 flex items-center gap-2"><button onClick={() => select(a.id)} className="font-mono text-xs text-ink underline">{a.id}</button><span className="text-xs text-muted">{a.name}</span><Badge o={r.decisions[a.id].outcome} small /></div>
+              <ul className="space-y-0.5 text-xs text-body">
+                {flags.map((f, i) => <li key={i} className="flex gap-1.5"><span className={f.severity === 'error' ? 'text-ot-decline' : f.severity === 'warn' ? 'text-ot-hold' : 'text-muted'}>▲</span>{f.message}</li>)}
               </ul>
             </li>
           ))}
-          {!rows.length && <li className="text-sm text-slate-400">No data-quality flags. Clean file.</li>}
+          {!rows.length && <li className="text-sm text-muted">No data-quality flags. Clean file.</li>}
         </ul>
       </Card>
     </div>

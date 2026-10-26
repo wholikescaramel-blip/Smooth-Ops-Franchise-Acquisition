@@ -1,13 +1,42 @@
 import type { Outcome } from '../engine';
 
+/** Outcome colours for dots, icons and fills. Never the primary coral. */
 export const OUTCOME_COLOR: Record<Outcome, string> = {
-  Approved: '#3ddc97',
-  Hold: '#f5b942',
-  Waitlist: '#5aa9ff',
-  Redirect: '#b583ff',
-  Decline: '#ff5d6c',
+  Approved: '#1F8A5B',
+  Hold: '#D99A00',
+  Waitlist: '#7A5AF8',
+  Redirect: '#1B9AAA',
+  Decline: '#8A8F98',
 };
-export const PRIORITY_COLOR = { High: '#ff8a4c', Medium: '#e8c547', Low: '#6c8cae' } as const;
+/** Darker tones for text so labels pass WCAG AA on white. */
+export const OUTCOME_TEXT: Record<Outcome, string> = {
+  Approved: '#17704A',
+  Hold: '#8A5F00',
+  Waitlist: '#6244D6',
+  Redirect: '#12717D',
+  Decline: '#5E636C',
+};
+export const OUTCOME_ICON_PATH: Record<Outcome, string> = {
+  Approved: 'M2.6 6.4l2.3 2.3 4.6-5', // check
+  Hold: 'M4.2 3v6M7.8 3v6', // pause
+  Waitlist: 'M6 2.8V6l2.2 1.4', // clock hands (circle drawn separately)
+  Redirect: 'M2.5 6h6.6M6.6 3.2L9.4 6 6.6 8.8', // arrow
+  Decline: 'M3.2 3.2l5.6 5.6M8.8 3.2L3.2 8.8', // cross
+};
+export const PRIORITY_TONE = { High: 0.2, Medium: 0.12, Low: 0.06 } as const;
+
+/** Filled colour disc with a white icon: colour AND shape, never colour alone. Hold uses an ink glyph for contrast. */
+export function OutcomeIcon({ o, size = 16 }: { o: Outcome; size?: number }) {
+  const c = OUTCOME_COLOR[o];
+  const glyph = o === 'Hold' ? '#222B45' : '#FFFFFF';
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" aria-hidden="true" className="shrink-0">
+      <circle cx="6" cy="6" r="6" fill={c} />
+      {o === 'Waitlist' && <circle cx="6" cy="6" r="3.7" fill="none" stroke={glyph} strokeWidth="1.1" />}
+      <path d={OUTCOME_ICON_PATH[o]} fill="none" stroke={glyph} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 /** Calendar date for "N weeks from today" (display only; the engine itself never reads the clock). */
 export function weekDate(w: number | undefined): string {
@@ -18,26 +47,25 @@ export function weekDate(w: number | undefined): string {
 }
 
 export function Badge({ o, small }: { o: Outcome; small?: boolean }) {
-  const c = OUTCOME_COLOR[o];
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border font-medium ${small ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'}`}
-      style={{ color: c, borderColor: c + '55', background: c + '14' }}
+      className={`inline-flex items-center gap-1.5 rounded-full font-semibold ${small ? 'py-0.5 pl-1 pr-2 text-xs' : 'py-1 pl-1.5 pr-3 text-sm'}`}
+      style={{ color: OUTCOME_TEXT[o], background: OUTCOME_COLOR[o] + '1F' }}
     >
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: c }} />
+      <OutcomeIcon o={o} size={small ? 14 : 18} />
       {o}
     </span>
   );
 }
 
 export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-ink-600/70 bg-ink-850/80 ${className}`}>{children}</div>;
+  return <div className={`rounded-lg border border-hair bg-surface ${className}`}>{children}</div>;
 }
 
 export function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="mb-2 flex items-center justify-between">
-      <h3 className="font-display text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{children}</h3>
+      <h3 className="text-base font-semibold text-ink">{children}</h3>
       {right}
     </div>
   );
@@ -45,15 +73,13 @@ export function SectionTitle({ children, right }: { children: React.ReactNode; r
 
 export function Legend() {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
       {(Object.keys(OUTCOME_COLOR) as Outcome[]).map((o) => (
         <span key={o} className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: OUTCOME_COLOR[o] }} />
+          <OutcomeIcon o={o} size={14} />
           {o}
         </span>
       ))}
-      <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-slate-300/70" />Store catchment</span>
-      <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full" style={{ background: '#e8c54733', border: '1px solid #e8c547' }} />Territory (size = open slots)</span>
     </div>
   );
 }
