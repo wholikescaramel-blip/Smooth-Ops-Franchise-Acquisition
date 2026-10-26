@@ -206,7 +206,14 @@ function run(intent: Intent) {
       const d = getState().result.decisions[intent.id];
       const lines = [`Applied: ${describePatchSummary(intent.patch)}.`, `${intent.id} is now ${O(d.outcome)}. ${d.reasons[0]}`];
       for (const c of diff.changes) if (!c.subject && c.knockOn) lines.push('Knock-on: ' + c.knockOn);
-      if (!diff.changes.length) lines.push('No decision changed. The map is unchanged.');
+      if (!diff.changes.length) {
+        lines.push('No decision changed, so the map is unchanged.');
+        if (d.outcome !== 'Approved') {
+          lines.push(`${intent.id} stays ${O(d.outcome)} because: ${d.reasons[0]}`);
+          const cf = counterfactuals(getState().ds, getState().overrides, intent.id)[0];
+          if (cf) lines.push(`What would change it: ${cf.text}.`);
+        }
+      }
       set({ answer: { title: intent.summary, lines, tone: diff.changes.length ? 'ok' : 'info', focusId: intent.id } });
       return;
     }
@@ -218,8 +225,8 @@ function run(intent: Intent) {
       const diff = commit(nds, overrides, { kind: 'territory', text: intent.summary }, [], intent.summary);
       const lines = [`${t.id} (${t.city}) open slots: ${t.slots} → ${slots}.`];
       for (const c of diff.changes) lines.push(`${c.id}: ${c.from} → ${c.to}. ${c.knockOn ?? ''}`);
-      if (!diff.changes.length) lines.push('No decision changed.');
-      set({ answer: { title: intent.summary, lines, tone: 'ok' } });
+      if (!diff.changes.length) lines.push(...whySlotsChangedNothing(t.id, t.city, t.slots, slots));
+      set({ answer: { title: intent.summary, lines, tone: diff.changes.length ? 'ok' : 'info' } });
       return;
     }
     case 'list': {
@@ -256,6 +263,28 @@ function run(intent: Intent) {
         },
       });
   }
+}
+
+/**
+ * A slot only helps someone who qualified but lost for lack of space. When changing a territory's slots moves nobody,
+ * say why, and say what is really holding back the applicants around it.
+ */
+function whySlotsChangedNothing(tid: string, city: string, was: number, now: number): string[] {
+  const { ds, result } = getState();
+  const rt = result.territories.find((x) => x.territory.id === tid);
+  const used = rt?.filled ?? 0;
+  const near = ds.applications.filter((a) => {
+    const d = result.decisions[a.id];
+    return d.outcome !== 'Approved' && (d.territoryId === tid || d.redirect?.territoryId === tid || a.city === city);
+  });
+  const lines = [`No decision changed. ${tid} uses ${used} of its ${now} slot${now === 1 ? '' : 's'}, and nobody there was waiting for a slot, so ${now > was ? 'an extra one' : 'a different number'} changes nothing.`];
+  if (near.length) {
+    lines.push(`What is actually holding back the applicants in ${city}:`);
+    for (const a of near.slice(0, 6)) lines.push(`• ${a.id} (${result.decisions[a.id].outcome}): ${result.decisions[a.id].headline.replace(/^[^:]*: /, '')}`);
+    if (near.length > 6) lines.push(`…and ${near.length - 6} more.`);
+  }
+  lines.push('Holds, declines and redirects come from missing data, a pin that is taken or has a store on it, or a score below the bar. More slots only help applicants who qualified but were waitlisted because the territory was full.');
+  return lines;
 }
 
 function notFound(id: string) {
