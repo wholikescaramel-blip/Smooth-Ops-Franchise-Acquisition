@@ -3,10 +3,12 @@ import { cityByName, pinPosition } from '../data/cityGeo';
 import type { Dataset, EngineResult, Outcome } from '../engine';
 import type { Layers } from '../state/store';
 import { loadGoogleMaps } from '../lib/googleMaps';
+import { hasLocation } from './mapUtil';
 import { OUTCOME_COLOR } from './ui';
 
 const INK = '#222222';
 const BRAND = '#3F3BB5';
+const MUTE = '#6A6A6A';
 const BOUNDS = { south: 11.4, west: 73.9, north: 18.6, east: 78.7 };
 
 /** Quiet, light base map in the same family as the rest of the app: no points of interest, muted roads. */
@@ -119,7 +121,7 @@ export function GoogleMapView({ ds, result, prev, focus, selected, changed, visi
         if (cancelled || !box.current) return;
         const m = new google.maps.Map(box.current, {
           center: { lat: 15.0, lng: 76.3 }, zoom: 7, styles: STYLE, disableDefaultUI: true, gestureHandling: 'greedy',
-          clickableIcons: false, restriction: { latLngBounds: { north: 22, south: 8, east: 82, west: 70 }, strictBounds: false },
+          clickableIcons: false, minZoom: 6, maxZoom: 17,
         });
         m.fitBounds(BOUNDS);
         m.addListener('zoom_changed', () => setZoom(Math.round(m.getZoom() ?? 7)));
@@ -149,8 +151,9 @@ export function GoogleMapView({ ds, result, prev, focus, selected, changed, visi
     if (!ready || !m) return;
     const c = focus !== 'state' ? cityByName(focus) : null;
     if (c) {
-      m.panTo({ lat: c.lat, lng: c.lng });
-      m.setZoom(c.name === 'Bengaluru' ? 12 : 12);
+      // centre first, then zoom: panTo + setZoom (or setOptions with both) can leave the camera at the wrong place
+      m.setCenter({ lat: c.lat, lng: c.lng });
+      m.setZoom(12);
     } else m.fitBounds(BOUNDS, 8);
   }, [ready, focus]);
 
@@ -169,24 +172,33 @@ export function GoogleMapView({ ds, result, prev, focus, selected, changed, visi
     const cityFocus = focus !== 'state' ? focus : null;
     const inCity = (city: string | null | undefined) => !cityFocus || city === cityFocus;
 
-    // territories
+    // territories: a patch around every pin they list (pin codes are not contiguous, so no single outline)
     if (layers.territories) {
       const filled = new Map(result.territories.map((t) => [t.territory.id, t.filled]));
+      const pinStatus = new Map(result.pins.map((p) => [p.pin, p]));
       for (const t of ds.territories) {
         if (!inCity(t.city)) continue;
-        const pts = t.pins.map((p) => pinPosition(p, t.city)).filter(Boolean) as { lat: number; lng: number }[];
-        const cc = cityByName(t.city);
-        if (!pts.length && !cc) continue;
-        const lat = pts.length ? pts.reduce((s, p) => s + p.lat, 0) / pts.length : (cc as NonNullable<typeof cc>).lat;
-        const lng = pts.length ? pts.reduce((s, p) => s + p.lng, 0) / pts.length : (cc as NonNullable<typeof cc>).lng;
+        const pts = t.pins.map((pin) => ({ pin, pp: pinPosition(pin, t.city) })).filter((x) => x.pp) as { pin: string; pp: { lat: number; lng: number } }[];
+        if (!pts.length) continue;
         const open = Math.max(0, t.slots - (filled.get(t.id) ?? 0));
-        const circle = add(new google.maps.Circle({
-          map: m, center: { lat, lng }, radius: (2200 + 900 * Math.sqrt(open)) * k, strokeColor: BRAND, strokeOpacity: open > 0 ? 0.7 : 0.3, strokeWeight: 1.5,
-          fillColor: BRAND, fillOpacity: open > 0 ? 0.1 : 0.03, clickable: !cityFocus, zIndex: 1,
-        }));
-        if (!cityFocus) circle.addListener('click', () => onFocus?.(t.city));
+        for (const x of pts) {
+          const circle = add(new google.maps.Circle({
+            map: m, center: x.pp, radius: 1300 * k, strokeColor: BRAND, strokeOpacity: open > 0 ? 0.55 : 0.25, strokeWeight: 1.2,
+            fillColor: BRAND, fillOpacity: open > 0 ? 0.08 : 0.025, clickable: !cityFocus, zIndex: 1,
+          }));
+          if (!cityFocus) circle.addListener('click', () => onFocus?.(t.city));
+          const st = pinStatus.get(x.pin);
+          if (zoom >= 11 && st && st.status !== 'blocked') {
+            add(new google.maps.Marker({
+              map: m, position: x.pp, clickable: false, zIndex: 2, title: `Pin ${x.pin}: ${st.status}`,
+              icon: { path: google.maps.SymbolPath.CIRCLE, scale: 4.5, fillColor: st.status === 'taken' ? INK : '#fff', fillOpacity: 1, strokeColor: st.status === 'contested' ? BRAND : MUTE, strokeWeight: 1.5, labelOrigin: new google.maps.Point(0, 2.6) },
+              label: { text: x.pin, color: MUTE, fontSize: '10px', fontWeight: '500' },
+            }));
+          }
+        }
+        const top = pts.reduce((mm, x) => (x.pp.lat > mm.pp.lat ? x : mm), pts[0]);
         add(new google.maps.Marker({
-          map: m, position: { lat, lng }, clickable: false, zIndex: 2, opacity: 0, title: `${t.id}: ${open} of ${t.slots} slots open`,
+          map: m, position: top.pp, clickable: false, zIndex: 2, opacity: 0, title: `${t.id}: ${open} of ${t.slots} slots open`,
           label: cityFocus ? { text: `${t.id}, ${open} of ${t.slots} open`, color: BRAND, fontWeight: '700', fontSize: '12px', className: 'gm-tlabel' } : undefined,
         }));
       }
@@ -206,8 +218,10 @@ export function GoogleMapView({ ds, result, prev, focus, selected, changed, visi
     // applicants (offset slightly when several share a pin)
     if (layers.applicants) {
       const groups = new Map<string, string[]>();
-      for (const a of ds.applications) if (a.pin) groups.set(a.pin, [...(groups.get(a.pin) ?? []), a.id]);
-      for (const a of ds.applications) {
+      const inAny = new Set(ds.territories.flatMap((t) => t.pins));
+      const placed = ds.applications.filter((a) => hasLocation(a, result.decisions[a.id]));
+      for (const a of placed) if (a.pin) groups.set(a.pin, [...(groups.get(a.pin) ?? []), a.id]);
+      for (const a of placed) {
         if (!a.pin || !inCity(a.city)) continue;
         const pp = pinPosition(a.pin, a.city);
         if (!pp) continue;
@@ -222,6 +236,7 @@ export function GoogleMapView({ ds, result, prev, focus, selected, changed, visi
         const was = prev?.decisions[a.id]?.outcome;
         const label = zoom >= 11 || isSel || isChanged ? a.id.replace('APP-', '') : null;
         const col = OUTCOME_COLOR[d.outcome];
+        if (!inAny.has(a.pin)) add(new google.maps.Circle({ map: m, center: pos, radius: 1700 * k, strokeColor: MUTE, strokeOpacity: dim ? 0.15 : 0.8, strokeWeight: 1.5, fillOpacity: 0, clickable: false, zIndex: 4 }));
         add(new google.maps.Circle({ map: m, center: pos, radius: 750 * k, strokeColor: col, strokeOpacity: dim ? 0.1 : 0.45, strokeWeight: 1, fillColor: col, fillOpacity: dim ? 0.03 : 0.12, clickable: false, zIndex: 5 }));
         if (layers.rings && d.outcome === 'Approved') add(new google.maps.Circle({ map: m, center: pos, radius: 1500 * k, strokeColor: OUTCOME_COLOR.Approved, strokeOpacity: 0.7, strokeWeight: 1.5, fillOpacity: 0, clickable: false, zIndex: 5 }));
         const mk = add(new google.maps.Marker({
