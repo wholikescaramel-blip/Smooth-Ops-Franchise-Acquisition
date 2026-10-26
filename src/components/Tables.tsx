@@ -133,7 +133,7 @@ export function TerritoryCards() {
   );
 }
 
-export function DataQuality() {
+export function DataQuality({ onPick }: { onPick?: () => void }) {
   const ds = useStore((s) => s.ds);
   const r = useStore((s) => s.result);
   const rows = ds.applications.map((a) => ({ a, flags: r.decisions[a.id].flags })).filter((x) => x.flags.length);

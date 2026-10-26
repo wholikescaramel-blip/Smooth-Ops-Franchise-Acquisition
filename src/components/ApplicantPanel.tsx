@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { counterfactuals, OUTCOMES, type Outcome } from '../engine';
 import { select, setOverride, useStore } from '../state/store';
+import { FixForm } from './FixForm';
 import { btnPrimary, btn, field, Icon, Mark, OUTCOME_COLOR, weekDate } from './ui';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -54,6 +55,14 @@ export function ApplicantPanel({ onClose }: { onClose: () => void }) {
             <p className="mt-4 text-lg font-semibold leading-snug">{d.headline}</p>
             <p className="mt-1 text-sm text-mute">{a.city ?? 'City unknown'}, pin {a.pinRaw || 'not given'}, {d.territoryId ?? 'no territory'}, prefers {a.language}</p>
           </div>
+
+          {d.missing.length > 0 && (
+            <section className="mt-5 rounded-xl border-2 border-brand bg-white p-5">
+              <h3 className="text-lg font-semibold">This needs your input</h3>
+              <p className="mb-4 mt-1 text-sm text-mute">We do not guess these. Enter them and the decision is worked out again straight away.</p>
+              <FixForm key={a.id + d.missing.map((m) => m.field).join()} app={a} missing={d.missing} />
+            </section>
+          )}
 
           <Section title="Why">
             <ul className="list-disc space-y-1 pl-5">

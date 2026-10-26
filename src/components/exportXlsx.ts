@@ -25,6 +25,7 @@ export function exportDecisions(ds: Dataset, result: EngineResult, overrides: Ov
       'Next steps': d.nextSteps.map((s, i) => `${i + 1}. ${s.text} (${s.when})`).join('\n'),
       'Training plan': d.plan ? `${d.plan.track}; ${d.plan.language}; ${d.plan.modules.join(', ')}; ${d.plan.feasibility}` : '',
       'Milestones': d.plan ? d.plan.milestones.map((m) => `W${m.week} ${m.name}`).join(' → ') : '',
+      'Needs input': d.missing.map((m) => m.label).join(', '),
       'Data-quality flags': d.flags.map((f) => f.message).join(' | '),
       Override: d.overridden ? `${d.overridden.outcome}: ${d.overridden.reason} (${d.overridden.applied ? 'applied' : 'not applied'})` : '',
     };

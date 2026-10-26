@@ -287,6 +287,14 @@ export function buildDataset(appRows: Row[], terRows: Row[]): ParseResult {
   if (!a.apps.length && !t.territories.length) {
     return { dataset: null, error: 'No applications or territories could be read from this file. Check that Sheet 1 is Applications and Sheet 2 is Territories, each with a header row.' };
   }
+  const owner = new Map<string, string>();
+  for (const ter of t.territories) {
+    for (const pin of ter.pins) {
+      const o = owner.get(pin);
+      if (o && o !== ter.id) warnings.push(`Pin ${pin} is listed in both ${o} and ${ter.id}; ${o} is used and ${ter.id} ignores it. Remove it from one of them.`);
+      else owner.set(pin, ter.id);
+    }
+  }
   if (!t.territories.length) warnings.push('No territories were found: every application will be held for location.');
   if (!a.apps.length) warnings.push('No applications were found.');
   return { dataset: { applications: a.apps, territories: t.territories, stores: EXISTING_STORES, warnings }, error: null };

@@ -3,6 +3,17 @@ import { runEngine } from './allocate';
 import { pinDistance } from './evaluate';
 import type { AppPatch, Application, Dataset, Overrides } from './types';
 
+const FIELD_FLAGS: Record<string, string[]> = {
+  city: ['city-unknown', 'city-inferred'],
+  investment: ['investment-unreadable', 'investment-coerced', 'investment-rupees'],
+  experience: ['experience-unreadable'],
+  size: ['size-unreadable'],
+  launchMonths: ['launch-unreadable'],
+  space: ['space-unknown'],
+  floor: ['floor-unknown'],
+  language: ['language-fallback'],
+};
+
 export function patchApp(ds: Dataset, id: string, patch: AppPatch): Dataset {
   return {
     ...ds,
@@ -11,6 +22,10 @@ export function patchApp(ds: Dataset, id: string, patch: AppPatch): Dataset {
       const n: Application = { ...a, ...patch };
       if (patch.space !== undefined || patch.investment !== undefined || patch.experience !== undefined) n.notesSuperseded = true;
       if (patch.pin !== undefined) n.pinRaw = patch.pin ?? '';
+      // a confirmed value replaces whatever the file got wrong, so its parse warnings no longer apply
+      const cleared: string[] = [];
+      for (const [k, codes] of Object.entries(FIELD_FLAGS)) if ((patch as Record<string, unknown>)[k] !== undefined) cleared.push(...codes);
+      if (cleared.length) n.parseFlags = a.parseFlags.filter((f) => !cleared.includes(f.code));
       return n;
     }),
   };
@@ -32,6 +47,12 @@ export function counterfactuals(ds: Dataset, overrides: Overrides, id: string): 
   const base = runEngine(ds, overrides);
   const d0 = base.decisions[id];
   if (!d0 || d0.outcome === 'Approved') return [];
+  // guessed or unreadable details: the only honest fix is a person confirming them
+  if (d0.missing.length && d0.decidedBy === 'Data check') {
+    const patch: AppPatch = {};
+    for (const m of d0.missing) if (m.field === 'city' && typeof m.suggest === 'string') patch.city = m.suggest;
+    return [{ text: `Confirm ${d0.missing.map((m) => m.label.toLowerCase()).join(', ')}${patch.city ? ` (the pin suggests ${patch.city})` : ''}`, patch: Object.keys(patch).length ? patch : undefined }];
+  }
   const noOv: Overrides = { ...overrides };
   delete noOv[id]; // counterfactuals describe the engine's own logic
   const tier = d0.breakdown.length ? undefined : undefined;
@@ -159,6 +180,8 @@ export function counterfactuals(ds: Dataset, overrides: Overrides, id: string): 
 
 export function describePatchSummary(p: AppPatch): string {
   const bits: string[] = [];
+  if (p.name) bits.push(`name ${p.name}`);
+  if (p.city) bits.push(`city ${p.city}`);
   if (p.space) bits.push(`space ${p.space}`);
   if (p.floor) bits.push(`${p.floor} floor`);
   if (p.size != null) bits.push(`${p.size} sq ft`);

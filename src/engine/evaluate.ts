@@ -1,5 +1,6 @@
 import { cityByName, cityByPrefix } from '../data/cityGeo';
 import { CONFIG, GENERIC_RETAIL, SPECIFIC_RETAIL } from './config';
+import { guessedBlockers } from './missing';
 import type { Application, Dataset, FactorScore, Flag, Territory, Tier } from './types';
 
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -7,7 +8,7 @@ const r1 = (x: number) => Math.round(x * 10) / 10;
 
 export type HoldKind =
   | 'location' | 'investment-missing' | 'investment-near' | 'space-none' | 'space-contradiction'
-  | 'space-size' | 'space-size-missing' | 'space-floor' | 'launch' | 'score' | 'notes-conflict';
+  | 'space-size' | 'space-size-missing' | 'space-floor' | 'launch' | 'score' | 'notes-conflict' | 'data-to-confirm';
 
 export interface Pre {
   app: Application;
@@ -221,6 +222,19 @@ export function evaluate(app: Application, ds: Dataset, ctx: Ctx): Pre {
     return done({ status: 'decline', declineKind: 'duplicate', decidedBy: 'Duplicate check', reasons: [`Same applicant name and pin ${app.pin} as ${dup}; treated as a duplicate entry.`, `${dup} is evaluated on its own merits; this entry adds no new information.`] });
   }
   trace.push('Gate 0 Duplicate check: pass');
+
+  // gate 0b: never approve on details we had to guess or could not read
+  const guessed = guessedBlockers(app);
+  if (guessed.length) {
+    trace.push(`Gate 0b Data check: FAIL (${guessed.map((g) => g.field).join(', ')} need confirming)`);
+    return done({
+      status: 'hold',
+      holdKind: 'data-to-confirm',
+      decidedBy: 'Data check',
+      reasons: [...guessed.map((g) => g.why), 'We do not guess missing or unreadable details, so this stays on hold until a person confirms them.'],
+    });
+  }
+  trace.push('Gate 0b Data check: pass');
 
   // gate 1: territory match
   if (!city || tier === null) {

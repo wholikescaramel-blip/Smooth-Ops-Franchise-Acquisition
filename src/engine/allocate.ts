@@ -1,6 +1,7 @@
 import { cityByName } from '../data/cityGeo';
 import { CONFIG } from './config';
 import { buildCtx, evaluate, pinDistance, whitespacePoints, type HoldKind, type Pre } from './evaluate';
+import { findMissing } from './missing';
 import { holdSteps, trainingPlan } from './plan';
 import { OUTCOMES, type Application, type Dataset, type Decision, type EngineResult, type Outcome, type Overrides, type PinStatus, type Step, type Territory, type TerritoryResult } from './types';
 
@@ -16,6 +17,7 @@ const HOLD_SHORT: Record<HoldKind, string> = {
   launch: 'launch date is unrealistic without a space',
   score: 'score is below the approval bar',
   'notes-conflict': 'the notes contradict the form',
+  'data-to-confirm': 'some details need confirming',
 };
 const DECLINE_SHORT = { investment: 'investment is below the tier minimum', score: 'score is below the minimum bar', duplicate: 'duplicate entry' } as const;
 
@@ -43,7 +45,7 @@ function emptyDecision(a: Application): Decision {
   return {
     id: a.id, outcome: 'Hold', headline: 'On hold: engine could not evaluate this row', reasons: ['The engine hit an unexpected problem with this row; a human should review it.'],
     decidedBy: 'Engine safety net', score: 0, breakdown: [], territoryId: null, pin: a.pin, assignedPin: null, redirect: null, waitlistPos: null,
-    conditions: [], flags: [...a.parseFlags], nextSteps: [{ text: 'Review this row manually and re-enter the details', when: 'This week' }], plan: null, trace: [], lostTo: null, overridden: null,
+    conditions: [], flags: [...a.parseFlags], nextSteps: [{ text: 'Review this row manually and re-enter the details', when: 'This week' }], plan: null, trace: [], lostTo: null, overridden: null, missing: [],
   };
 }
 
@@ -233,7 +235,7 @@ function runInner(ds: Dataset, overrides: Overrides): EngineResult {
     const base: Decision = {
       id: a.id, outcome: 'Hold', headline: '', reasons: [...pre.reasons], decidedBy: pre.decidedBy, score: pre.score, breakdown: pre.breakdown,
       territoryId: pre.territory?.id ?? null, pin: a.pin, assignedPin: null, redirect: null, waitlistPos: null, conditions: [...pre.conditions],
-      flags: pre.flags, nextSteps: [], plan: null, trace: [...pre.trace], lostTo: null, overridden: null,
+      flags: pre.flags, nextSteps: [], plan: null, trace: [...pre.trace], lostTo: null, overridden: null, missing: [],
     };
     const tier = pre.tier;
     const minSize = tier ? CONFIG.tierMinSize[tier] : 250;
@@ -331,6 +333,7 @@ function runInner(ds: Dataset, overrides: Overrides): EngineResult {
       base.overridden = { outcome: 'Approved', reason: overrides[a.id].reason, applied: false, note: rejectedOverride.get(a.id) as string };
     }
     if (base.reasons.length === 0) base.reasons = ['See the decision trace for details.'];
+    if (base.outcome === 'Hold') base.missing = findMissing(a, pre);
     result.set(a.id, base);
   }
 

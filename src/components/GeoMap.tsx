@@ -4,6 +4,7 @@ import geo from '../data/karnataka.geo.json';
 import { CITIES, cityByName, pinPosition } from '../data/cityGeo';
 import type { Dataset, EngineResult } from '../engine';
 import type { Layers } from '../state/store';
+import { hasLocation } from './mapUtil';
 import { MarkShape, OUTCOME_COLOR } from './ui';
 
 const W = 680;
@@ -53,7 +54,7 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
 
   const proj = useMemo(() => {
     if (cityFocus) {
-      const span = cityFocus.name === 'Bengaluru' ? 0.22 : 0.12;
+      const span = cityFocus.name === 'Bengaluru' ? 0.17 : 0.08;
       return geoMercator().center([cityFocus.lng, cityFocus.lat]).scale(W / ((span * Math.PI) / 180)).translate([W / 2, H / 2]);
     }
     return geoMercator().fitExtent([[40, 40], [W - 40, H - 90]], STATE);
@@ -69,8 +70,9 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
   const appPos = useMemo(() => {
     const m = new Map<string, [number, number]>();
     const groups = new Map<string, string[]>();
-    for (const a of ds.applications) if (a.pin) groups.set(a.pin, [...(groups.get(a.pin) ?? []), a.id]);
-    for (const a of ds.applications) {
+    const placed = ds.applications.filter((a) => hasLocation(a, result.decisions[a.id]));
+    for (const a of placed) if (a.pin) groups.set(a.pin, [...(groups.get(a.pin) ?? []), a.id]);
+    for (const a of placed) {
       if (!a.pin) continue;
       const pp = pinPosition(a.pin, a.city);
       if (!pp) continue;
@@ -83,7 +85,7 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ds, proj, u]);
+  }, [ds, result, proj, u]);
 
   const terrPos = useMemo(() => {
     const m = new Map<string, [number, number]>();
@@ -100,6 +102,24 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
   }, [ds, proj]);
 
   const filled = new Map(result.territories.map((t) => [t.territory.id, t.filled]));
+  const pinStatus = new Map(result.pins.map((p) => [p.pin, p]));
+  const inAnyTerritory = new Set(ds.territories.flatMap((t) => t.pins));
+  // The area a territory covers: a rounded patch around every pin it lists. Pins are placed with the same rule as
+  // applicants, so an applicant on one of these pins always sits inside its territory's patch.
+  const shapes = useMemo(() => {
+    const out: { id: string; city: string; d: string; labelAt: [number, number]; open: number; total: number; pts: { pin: string; xy: [number, number] }[] }[] = [];
+    for (const tr of ds.territories) {
+      const pts = tr.pins.map((pin) => ({ pin, pp: pinPosition(pin, tr.city) })).filter((x) => x.pp).map((x) => ({ pin: x.pin, xy: P((x.pp as { lat: number; lng: number }).lat, (x.pp as { lat: number; lng: number }).lng) }));
+      if (!pts.length) continue;
+      // one small area per pin, merged when they touch: pin codes are not contiguous, so no single outline is drawn around them
+      const d = pts.map((x) => `M${x.xy[0]} ${x.xy[1]}L${x.xy[0]} ${x.xy[1]}`).join('');
+      const top = pts.reduce((m, q) => (q.xy[1] < m[1] ? q.xy : m), pts[0].xy);
+      out.push({ id: tr.id, city: tr.city, d, labelAt: top, open: Math.max(0, tr.slots - (filled.get(tr.id) ?? 0)), total: tr.slots, pts });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ds, result, proj]);
+  const pad = zoom ? 22 : 6 * u;
   const bubbles = useMemo(() => {
     const list: { key: string; x: number; y: number; open: number; total: number; label: string; city?: string }[] = [];
     if (cityFocus) {
@@ -162,24 +182,39 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
             <text key={'t' + d.name} x={d.c[0]} y={d.c[1]} textAnchor="middle" fontSize={8.5 * u} fill="#B5B5B5" fontFamily="Figtree, sans-serif" fontWeight={500} style={halo}>{d.name}</text>
           ) : null))}
 
-        {/* territories: the bubble is the area the territory covers */}
-        {layers.territories &&
-          bubbles.map((b) => {
-            const r = (b.open > 0 ? 10 + 7 * Math.sqrt(b.open) * (zoom ? 2.1 : 1.4) : 7 * (zoom ? 2 : 1)) * (zoom ? 1.3 : 1) * (zoom ? 1 : Math.sqrt(u));
-            const clickable = !!b.city && !!onFocus && ds.territories.filter((t) => t.city === b.city).length > 1;
-            return (
-              <g key={b.key} onClick={() => clickable && onFocus?.(b.city as string)} style={{ cursor: clickable ? 'zoom-in' : 'default' }}>
-                <title>{`${b.label}: ${b.open} of ${b.total} slots open${clickable ? '. Click to zoom in.' : ''}`}</title>
-                <circle cx={b.x} cy={b.y} r={r} fill={BRAND} fillOpacity={b.open > 0 ? 0.1 : 0.03} stroke={BRAND} strokeOpacity={0.6} strokeWidth={zoom ? 1.6 : 1.1} strokeDasharray={b.open > 0 ? undefined : '3 3'} />
-                {!inset && zoom > 0 && (
-                  <g transform={`translate(${b.x} ${b.y - r - 14})`}>
-                    <rect x={-58} y={-12} width={116} height={24} rx={12} fill="#fff" filter={`url(#${id('sh')})`} />
-                    <text textAnchor="middle" y={4.5} fontSize={12} fontWeight={600} fill={BRAND} fontFamily="Figtree, sans-serif">{b.label}, {b.open} of {b.total} open</text>
-                  </g>
-                )}
+        {/* territories: the outline is the area they cover, drawn around every pin they list */}
+        {layers.territories && (
+          <g>
+            {shapes.filter((s) => showCity(s.city)).map((s) => {
+              const clickable = !zoom && !!onFocus && ds.territories.filter((x) => x.city === s.city).length > 0;
+              return (
+                <g key={s.id} onClick={() => clickable && onFocus?.(s.city)} style={{ cursor: clickable ? 'zoom-in' : 'default' }}>
+                  <title>{`${s.id}: ${s.open} of ${s.total} slots open${clickable ? '. Click to zoom in.' : ''}`}</title>
+                  <path d={s.d} fill={BRAND} stroke={BRAND} strokeOpacity={s.open > 0 ? 0.65 : 0.3} strokeWidth={pad * 2 + 2.4} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.open > 0 ? undefined : '6 5'} />
+                  <path d={s.d} fill="#fff" stroke="#fff" strokeWidth={pad * 2} strokeLinejoin="round" strokeLinecap="round" />
+                  <path d={s.d} fill={BRAND} fillOpacity={s.open > 0 ? 0.1 : 0.03} stroke={BRAND} strokeOpacity={s.open > 0 ? 0.1 : 0.03} strokeWidth={pad * 2} strokeLinejoin="round" strokeLinecap="round" />
+                </g>
+              );
+            })}
+            {zoom > 0 && !inset && shapes.filter((s) => showCity(s.city)).map((s) => (
+              <g key={'l' + s.id} transform={`translate(${s.labelAt[0]} ${s.labelAt[1] - pad - 16})`} pointerEvents="none">
+                <rect x={-72} y={-12} width={144} height={24} rx={12} fill="#fff" filter={`url(#${id('sh')})`} />
+                <text textAnchor="middle" y={4.5} fontSize={12} fontWeight={600} fill={BRAND} fontFamily="Figtree, sans-serif">{s.id}, {s.open} of {s.total} open</text>
               </g>
-            );
-          })}
+            ))}
+            {/* the pins themselves: hollow = free, filled = taken, dashed = wanted by several */}
+            {zoom > 0 && shapes.filter((s) => showCity(s.city)).flatMap((s) => s.pts.map((q) => {
+              const st = pinStatus.get(q.pin);
+              if (!st || st.status === 'blocked') return null;
+              return (
+                <g key={s.id + q.pin} pointerEvents="none">
+                  <circle cx={q.xy[0]} cy={q.xy[1]} r={st.status === 'taken' ? 5 : 4.5} fill={st.status === 'taken' ? INK : '#fff'} stroke={st.status === 'contested' ? BRAND : MUTE} strokeWidth={1.4} strokeDasharray={st.status === 'contested' ? '2.5 2' : undefined} />
+                  {!inset && <text x={q.xy[0] + 9} y={q.xy[1] + 4} fontSize={10.5} fontWeight={500} fill={MUTE} fontFamily="Figtree, sans-serif" style={halo}>{q.pin}</text>}
+                </g>
+              );
+            }))}
+          </g>
+        )}
 
         {/* existing stores: a store badge at the centre of the area it covers */}
         {layers.stores &&
@@ -267,6 +302,7 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
                 aria-label={`${a.id}, ${a.name}: ${d.outcome}${isChanged ? ', changed' : ''}`}
                 onMouseEnter={(e) => !inset && hv(a.id, e)} onMouseMove={(e) => !inset && hv(a.id, e)} onMouseLeave={() => setHover(null)}>
                 <circle cx={p[0]} cy={p[1]} r={r + 8 * u} fill="transparent" />
+                {a.pin && !inAnyTerritory.has(a.pin) && <circle cx={p[0]} cy={p[1]} r={r + 6 * u} fill="none" stroke={MUTE} strokeWidth={1.6} strokeDasharray="3 3"><title>This pin is outside every territory</title></circle>}
                 <circle cx={p[0]} cy={p[1]} r={catch_ * (zoom ? 0.9 : 0.8)} fill={c} fillOpacity={0.12} stroke={c} strokeOpacity={0.45} strokeWidth={1} />
                 {isChanged && <circle cx={p[0]} cy={p[1]} r={r} fill="none" stroke={c} strokeWidth={3} className="pin-ring" />}
                 {isChanged && <circle cx={p[0]} cy={p[1]} r={r} fill="none" stroke={c} strokeWidth={3} className="pin-ring" style={{ animationDelay: '0.5s' }} />}

@@ -59,7 +59,7 @@ export interface Dataset {
 }
 
 export type AppPatch = Partial<
-  Pick<Application, 'investment' | 'space' | 'floor' | 'size' | 'launchMonths' | 'pin' | 'experience' | 'language' | 'city'>
+  Pick<Application, 'name' | 'investment' | 'space' | 'floor' | 'size' | 'launchMonths' | 'pin' | 'experience' | 'language' | 'city'>
 >;
 
 export interface Override {
@@ -104,6 +104,15 @@ export interface TrainingPlan {
   feasibility: string;
 }
 
+/** A detail the engine will not guess. The UI turns each into a field to fill in. */
+export type FixField = 'name' | 'city' | 'pin' | 'investment' | 'experience' | 'space' | 'size' | 'floor' | 'launchMonths' | 'language';
+export interface Missing {
+  field: FixField;
+  label: string;
+  why: string;
+  suggest?: string | number;
+}
+
 export interface Decision {
   id: string;
   outcome: Outcome;
@@ -124,6 +133,8 @@ export interface Decision {
   trace: string[];
   lostTo: { id: string; kind: 'pin' | 'slots' | 'spacing' } | null;
   overridden: { outcome: Outcome; reason: string; applied: boolean; note: string } | null;
+  /** Details to enter or confirm before this application can move forward (Hold only). */
+  missing: Missing[];
 }
 
 export interface TerritoryResult {

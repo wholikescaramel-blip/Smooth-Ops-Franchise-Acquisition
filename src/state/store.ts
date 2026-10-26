@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { counterfactuals, diffResults, patchApp, patchTerritory, runEngine, type Dataset, type Diff, type EngineResult, type Outcome, type Overrides, describePatchSummary } from '../engine';
+import { counterfactuals, diffResults, patchApp, patchTerritory, runEngine, type AppPatch, type Dataset, type Diff, type EngineResult, type Outcome, type Overrides, describePatchSummary } from '../engine';
 import { parseQuery, type Intent } from '../query/parse';
 
 export interface LogEntry {
@@ -133,6 +133,17 @@ export function setOverride(id: string, outcome: Outcome | null, reason: string)
   } else {
     set({ answer: { title: outcome ? `Override logged for ${id}` : `Override removed for ${id}`, lines: [`${diff.changes.length} decision${diff.changes.length === 1 ? '' : 's'} changed. The one-pin rule and slot limits still apply.`], tone: 'ok', focusId: id } });
   }
+}
+
+/** Manual entry from the fix form: applies the confirmed details, re-runs the engine and logs it. */
+export function applyFix(id: string, patch: AppPatch) {
+  if (!state.ds.applications.some((a) => a.id === id) || !Object.keys(patch).length) return;
+  const text = `Manual entry for ${id}: ${describePatchSummary(patch)}`;
+  const diff = commit(patchApp(state.ds, id, patch), state.overrides, { kind: 'update', text }, [id], text);
+  const d = getState().result.decisions[id];
+  const lines = [`${id} is now ${d.outcome}. ${d.reasons[0] ?? ''}`];
+  for (const c of diff.changes) if (!c.subject && c.knockOn) lines.push('Knock-on: ' + c.knockOn);
+  set({ answer: { title: `Saved details for ${id}`, lines, tone: 'ok', focusId: id } });
 }
 
 export function undo() {

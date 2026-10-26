@@ -6,6 +6,8 @@ import { GeoMap } from './components/GeoMap';
 import { GoogleMapView } from './components/GoogleMapView';
 import { GOOGLE_MAPS_KEY } from './lib/googleMaps';
 import { LayersMenu } from './components/MapOverlays';
+import { MapWidgets } from './components/MapWidgets';
+import { hasLocation } from './components/mapUtil';
 import { RulesGlance, RulesPanel } from './components/RulesPanel';
 import { PinTiles } from './components/PinTiles';
 import { QueryAnswer, QueryBar } from './components/QueryBar';
@@ -83,6 +85,8 @@ function Dashboard() {
   const mapChanged = before ? [] : changed;
   const mapPrev = before ? null : prev;
   const flagCount = result.flagCount;
+  const unplaced = ds.applications.filter((a) => !hasLocation(a, result.decisions[a.id]));
+  const needN = result.order.filter((id) => result.decisions[id].missing.length).length;
   const selectedCity = ds.applications.find((a) => a.id === selected)?.city;
   const zoomIn = () => setFocus(focus !== 'state' ? focus : cityByName(selectedCity) ? (selectedCity as string) : 'Bengaluru');
 
@@ -111,6 +115,7 @@ function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line px-4 sm:px-8">
         <OutcomeTabs />
         <div className="flex flex-wrap gap-2 pb-2">
+          {needN > 0 && <button onClick={() => setModal('quality')} className="rounded-full border-2 border-brand bg-white px-4 py-1.5 text-sm font-semibold text-brand hover:bg-tint">Needs your input ({needN})</button>}
           <button onClick={() => setModal('rules')} className={btn + ' py-1.5'}>Rules</button>
           <button onClick={() => setModal('territories')} className={btn + ' py-1.5'}>Territories</button>
           <button onClick={() => setModal('quality')} className={btn + ' py-1.5'}>Data problems{flagCount ? ` (${flagCount})` : ''}</button>
@@ -174,7 +179,15 @@ function Dashboard() {
             </figure>
           )}
 
-          <p className="absolute bottom-3 left-3 z-10 max-w-[55%] rounded-full bg-white px-3 py-1.5 text-xs font-medium shadow-float">Map positions are approximate, not surveyed</p>
+          {view === 'map' && (
+            <div className="absolute bottom-12 left-3 z-10 hidden md:block"><MapWidgets ds={ds} result={mapResult} /></div>
+          )}
+          {view === 'map' && unplaced.length > 0 && (
+            <button onClick={() => setModal('quality')} className="absolute bottom-3 right-3 z-10 max-w-[60%] rounded-full bg-white px-3 py-1.5 text-left text-xs font-semibold shadow-float hover:bg-tint">
+              {unplaced.length} {unplaced.length === 1 ? 'applicant is' : 'applicants are'} not on the map: location unclear. Fix them.
+            </button>
+          )}
+          <p className="absolute bottom-3 left-3 z-10 max-w-[40%] rounded-full bg-white px-3 py-1.5 text-xs font-medium shadow-float">Map positions are approximate, not surveyed</p>
         </section>
 
         <div className="order-last space-y-5 lg:order-first">
@@ -203,7 +216,7 @@ function Dashboard() {
         <Modal onClose={() => setModal(null)} wide title={modal === 'rules' ? 'The rules the engine uses' : modal === 'territories' ? 'Territories' : modal === 'quality' ? 'Data problems' : 'Change log'}>
           {modal === 'rules' && <RulesPanel />}
           {modal === 'territories' && <TerritoryCards />}
-          {modal === 'quality' && <DataQuality />}
+          {modal === 'quality' && <DataQuality onPick={() => setModal(null)} />}
           {modal === 'log' && <ScenarioLog />}
         </Modal>
       )}

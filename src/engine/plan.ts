@@ -1,6 +1,7 @@
 import type { Step } from './types';
 import { CONFIG } from './config';
 import type { HoldKind, Pre } from './evaluate';
+import { guessedBlockers } from './missing';
 
 import { trainingPlan } from './training';
 export { trainingPlan };
@@ -38,6 +39,9 @@ export function holdSteps(pre: Pre, tierMinSize: number): Step[] {
       break;
     case 'space-floor':
       s.push({ text: 'Find a ground-floor or mall-unit space in this territory (upper floors lose walk-ins in high-footfall areas)', when: 'Within 3–4 weeks' });
+      break;
+    case 'data-to-confirm':
+      for (const m of pre.app.parseFlags.length ? guessedBlockers(pre.app) : []) s.push({ text: `Confirm ${m.label.toLowerCase()}: ${m.why}`, when: 'Within 1 week' });
       break;
     case 'notes-conflict':
       for (const c of pre.conflicts ?? []) s.push({ text: c.replace(/\. Confirm/, ' → confirm'), when: 'Within 1 week' });
