@@ -94,12 +94,17 @@ export function ApplicantPanel({ onClose }: { onClose: () => void }) {
           {d.plan && (
             <Section title="Training plan">
               <p className="font-semibold">{d.plan.track}</p>
-              <p className="text-sm text-mute">In {d.plan.language}. Store opens {weekDate(d.plan.openWeek)}{d.plan.redated ? ' (date moved)' : ''}.</p>
-              <details className="mt-2">
-                <summary className="cursor-pointer text-sm font-semibold text-brand underline underline-offset-4">See modules and milestones</summary>
-                <ul className="mt-3 flex flex-wrap gap-2">
-                  {d.plan.modules.map((m) => <li key={m} className="rounded-full bg-tint px-3 py-1 text-sm">{m}</li>)}
-                </ul>
+              <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-tint px-3 py-1.5 text-sm">
+                <span className="text-mute">Training language</span>
+                <b className="font-semibold text-brand">{d.plan.language}</b>
+                <span className="text-mute">(the applicant's choice)</span>
+              </p>
+              <p className="mt-2 text-sm text-mute">Store opens {weekDate(d.plan.openWeek)}{d.plan.redated ? ' (date moved)' : ''}. The six core modules are taught in {d.plan.language}:</p>
+              <ul className="mt-2 flex flex-wrap gap-2" aria-label={`Modules in ${d.plan.language}`}>
+                {d.plan.modules.map((m) => <li key={m} lang={d.plan?.language === 'Kannada' ? 'kn' : d.plan?.language === 'Hindi' ? 'hi' : 'en'} className="rounded-full bg-tint px-3 py-1 text-sm">{m}</li>)}
+              </ul>
+              <details className="mt-3">
+                <summary className="cursor-pointer text-sm font-semibold text-brand underline underline-offset-4">See the week-by-week milestones</summary>
                 <ol className="mt-3">
                   {d.plan.milestones.map((m) => (
                     <li key={m.name} className="flex items-baseline gap-3 border-t border-line py-2">
