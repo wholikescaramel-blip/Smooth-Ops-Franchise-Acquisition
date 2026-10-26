@@ -127,7 +127,7 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ds, result, proj]);
-  const pad = zoom ? 22 : 6 * u;
+  const pad = zoom ? 27 : 7 * u;
   const bubbles = useMemo(() => {
     const list: { key: string; x: number; y: number; open: number; total: number; label: string; city?: string }[] = [];
     if (cityFocus) {
@@ -217,9 +217,14 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
               return (
                 <g key={s.id} onClick={() => clickable && onFocus?.(s.city)} style={{ cursor: clickable ? 'zoom-in' : 'default' }}>
                   <title>{`${s.id}: ${s.open} of ${s.total} slots open${clickable ? '. Click to zoom in.' : ''}`}</title>
-                  <path d={s.d} fill={BRAND} stroke={BRAND} strokeOpacity={s.open > 0 ? 0.65 : 0.3} strokeWidth={pad * 2 + 2.4} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.open > 0 ? undefined : '6 5'} />
-                  <path d={s.d} fill="#fff" stroke="#fff" strokeWidth={pad * 2} strokeLinejoin="round" strokeLinecap="round" />
-                  <path d={s.d} fill={BRAND} fillOpacity={s.open > 0 ? 0.1 : 0.03} stroke={BRAND} strokeOpacity={s.open > 0 ? 0.1 : 0.03} strokeWidth={pad * 2} strokeLinejoin="round" strokeLinecap="round" />
+                  {/* see-through tint so the street map stays readable underneath */}
+                  <path d={s.d} fill="none" stroke={BRAND} strokeOpacity={s.open > 0 ? 0.32 : 0.1} strokeWidth={pad * 2} strokeLinejoin="round" strokeLinecap="round" />
+                  {/* solid outline: a thick copy of the shape with the inside cut out */}
+                  <mask id={id('tm' + s.id)} maskUnits="userSpaceOnUse" x={-W * 2} y={-H * 2} width={W * 5} height={H * 5}>
+                    <path d={s.d} fill="none" stroke="#fff" strokeWidth={pad * 2 + (zoom ? 7 : 4.5)} strokeLinejoin="round" strokeLinecap="round" />
+                    <path d={s.d} fill="none" stroke="#000" strokeWidth={pad * 2} strokeLinejoin="round" strokeLinecap="round" />
+                  </mask>
+                  <rect x={-W * 2} y={-H * 2} width={W * 5} height={H * 5} fill={BRAND} fillOpacity={s.open > 0 ? 1 : 0.45} mask={`url(#${id('tm' + s.id)})`} pointerEvents="none" />
                 </g>
               );
             })}
@@ -253,7 +258,7 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
             return (
               <g key={s.id}>
                 <title>{`Existing store ${s.id}, pin ${s.pin}`}</title>
-                <circle cx={x} cy={y} r={catch_} fill={INK} fillOpacity={0.04} stroke={INK} strokeOpacity={0.5} strokeWidth={zoom ? 1.4 : 1} strokeDasharray="4 3" />
+                <circle cx={x} cy={y} r={catch_} fill="none" stroke={INK} strokeOpacity={0.5} strokeWidth={zoom ? 1.4 : 1} strokeDasharray="4 3" />
                 <circle cx={x} cy={y} r={10.5 * k} fill="#fff" filter={`url(#${id('sh')})`} />
                 <g transform={`translate(${x - 7 * k} ${y - 7 * k}) scale(${(14 / 24) * k})`} fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 9l1.5-5h13L20 9M4 9v1a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 6 0 2.5 2.5 0 0 0 5 0V9M5 12.5V20h14v-7.5" />
@@ -330,7 +335,7 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
                 onMouseEnter={(e) => !inset && hv(a.id, e)} onMouseMove={(e) => !inset && hv(a.id, e)} onMouseLeave={() => setHover(null)}>
                 <circle cx={p[0]} cy={p[1]} r={r + 8 * u} fill="transparent" />
                 {a.pin && !inAnyTerritory.has(a.pin) && <circle cx={p[0]} cy={p[1]} r={r + 6 * u} fill="none" stroke={MUTE} strokeWidth={1.6} strokeDasharray="3 3"><title>This pin is outside every territory</title></circle>}
-                <circle cx={p[0]} cy={p[1]} r={catch_ * (zoom ? 0.9 : 0.8)} fill={c} fillOpacity={0.12} stroke={c} strokeOpacity={0.45} strokeWidth={1} />
+                {(isSel || isChanged) && <circle cx={p[0]} cy={p[1]} r={catch_ * (zoom ? 0.9 : 0.8)} fill={c} fillOpacity={0.12} stroke={c} strokeOpacity={0.45} strokeWidth={1} />}
                 {isChanged && <circle cx={p[0]} cy={p[1]} r={r} fill="none" stroke={c} strokeWidth={3} className="pin-ring" />}
                 {isChanged && <circle cx={p[0]} cy={p[1]} r={r} fill="none" stroke={c} strokeWidth={3} className="pin-ring" style={{ animationDelay: '0.5s' }} />}
                 <g transform={isSel ? `translate(${p[0]} ${p[1]}) scale(1.12) translate(${-p[0]} ${-p[1]})` : undefined}>
