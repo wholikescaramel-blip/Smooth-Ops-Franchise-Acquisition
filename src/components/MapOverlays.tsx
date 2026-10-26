@@ -3,6 +3,7 @@ import { toggleLayer, type Layers } from '../state/store';
 import { Icon } from './ui';
 
 const LAYER_LABELS: [keyof Layers, string][] = [
+  ['basemap', 'Street map'],
   ['territories', 'Territories'],
   ['stores', 'Existing stores'],
   ['applicants', 'Applicants'],

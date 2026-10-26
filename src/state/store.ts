@@ -9,6 +9,7 @@ export interface LogEntry {
   changed: number;
 }
 export interface Layers {
+  basemap: boolean;
   territories: boolean;
   stores: boolean;
   applicants: boolean;
@@ -67,7 +68,7 @@ let state: State = {
   phase: 'upload', error: null, fileName: '', baseDS: null, ds: emptyDS, overrides: {}, baseResult: null, result: runEngine(emptyDS),
   prev: null, diff: null, changed: [], log: [], history: [], selected: null, answer: null, filter: {}, tab: 'detail', compare: false,
   save: { status: 'idle', id: null },
-  view: 'map', focus: 'state', layers: { territories: true, stores: true, applicants: true, rings: false, arcs: false, heat: false },
+  view: 'map', focus: 'state', layers: { basemap: true, territories: true, stores: true, applicants: true, rings: false, arcs: false, heat: false },
 };
 const subs = new Set<() => void>();
 const set = (p: Partial<State>) => {

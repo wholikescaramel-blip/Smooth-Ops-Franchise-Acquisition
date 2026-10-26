@@ -56,7 +56,9 @@ function Dashboard() {
   const [showBefore, setShowBefore] = useState(false);
   // Use Google Maps when a key is set. If Google rejects it, fall back to the built-in map so the app never breaks.
   const [googleFailed, setGoogleFailed] = useState(false);
-  const useGoogle = !!GOOGLE_MAPS_KEY && !googleFailed;
+  // Google is opt-in only (VITE_MAP_PROVIDER=google plus a key). The default is the built-in map with a keyless street layer,
+  // which cannot go blank because of billing, quotas or key restrictions.
+  const useGoogle = import.meta.env.VITE_MAP_PROVIDER === 'google' && !!GOOGLE_MAPS_KEY && !googleFailed;
 
   // A new change always shows its "after" first.
   useEffect(() => setShowBefore(false), [diff]);

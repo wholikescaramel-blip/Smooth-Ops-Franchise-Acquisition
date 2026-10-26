@@ -5,6 +5,7 @@ import { CITIES, cityByName, pinPosition } from '../data/cityGeo';
 import type { Dataset, EngineResult } from '../engine';
 import type { Layers } from '../state/store';
 import { hasLocation } from './mapUtil';
+import { ATTRIBUTION, tilesFor } from './tiles';
 import { MarkShape, OUTCOME_COLOR } from './ui';
 
 const W = 680;
@@ -60,6 +61,13 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
     return geoMercator().fitExtent([[40, 40], [W - 40, H - 90]], STATE);
   }, [cityFocus]);
   const path = useMemo(() => geoPath(proj), [proj]);
+  // the box of the SVG that is actually on screen (the inset shows only the middle of the city view)
+  const viewBox: [number, number, number, number] = inset ? [W / 2 - 180, H / 2 - 180, W / 2 + 180, H / 2 + 180] : [0, 0, W, H];
+  // the map box is usually wider or taller than the drawing, so cover well beyond it
+  const tileBox: [number, number, number, number] = inset ? viewBox : [-W * 0.7, -H * 0.2, W * 1.7, H * 1.2];
+  const tiles = useMemo(() => tilesFor(proj, tileBox), [proj, inset]);
+  const [tileErrors, setTileErrors] = useState(0);
+  const streetMap = layers.basemap && tiles.length > 0 && tileErrors < Math.max(3, tiles.length / 2);
   const P = (lat: number, lng: number) => proj([lng, lat]) as [number, number];
 
   const districts = useMemo(
@@ -171,11 +179,30 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
           </filter>
         </defs>
 
-        {/* land: one soft shape for the state, hairline district borders inside */}
-        <g>
-          {districts.map((d) => <path key={'o' + d.name} d={d.d} fill="#fff" stroke="#fff" strokeWidth={4} strokeLinejoin="round" />)}
-          {districts.map((d) => <path key={'b' + d.name} d={d.d} fill="none" stroke="#E4E4E4" strokeWidth={zoom ? 1.2 : 0.8} strokeLinejoin="round" />)}
-        </g>
+        {/* street map underneath (no key needed); everything else is drawn on top of it */}
+        {streetMap && (
+          <g style={{ filter: 'saturate(0.35) brightness(1.1) contrast(0.9)' }}>
+            {tiles.map((tl) => (
+              <image key={tl.key} href={tl.url} x={tl.x} y={tl.y} width={tl.size + 0.6} height={tl.size + 0.6} preserveAspectRatio="none" onError={() => setTileErrors((n) => n + 1)} />
+            ))}
+            {/* dim everything outside Karnataka so the state stands out */}
+            <mask id={id('dim')}>
+              <rect x={-W * 2} y={-H * 2} width={W * 5} height={H * 5} fill="#fff" />
+              {districts.map((d) => <path key={'m' + d.name} d={d.d} fill="#000" />)}
+            </mask>
+            <rect x={-W * 2} y={-H * 2} width={W * 5} height={H * 5} fill="#fff" fillOpacity={0.62} mask={`url(#${id('dim')})`} />
+            {districts.map((d) => <path key={'b' + d.name} d={d.d} fill="none" stroke="#222" strokeOpacity={0.28} strokeWidth={zoom ? 1.4 : 0.8} strokeLinejoin="round" />)}
+            <g style={{ mixBlendMode: 'multiply' }}>
+              {districts.map((d) => <path key={'e' + d.name} d={d.d} fill="none" stroke="#3F3BB5" strokeOpacity={0.55} strokeWidth={zoom ? 2.4 : 1.6} strokeLinejoin="round" />)}
+            </g>
+          </g>
+        )}
+        {!streetMap && (
+          <g>
+            {districts.map((d) => <path key={'o' + d.name} d={d.d} fill="#fff" stroke="#fff" strokeWidth={4} strokeLinejoin="round" />)}
+            {districts.map((d) => <path key={'b' + d.name} d={d.d} fill="none" stroke="#E4E4E4" strokeWidth={zoom ? 1.2 : 0.8} strokeLinejoin="round" />)}
+          </g>
+        )}
 
         {!inset && !zoom &&
           districts.map((d) => (d.c && inBox(d.c[0], d.c[1]) ? (
@@ -330,6 +357,7 @@ export function GeoMap({ ds, result, prev, focus, selected, changed, visible, la
             );
           })}
       </svg>
+      {streetMap && !inset && <p className="pointer-events-none absolute bottom-1 right-1 z-10 rounded bg-white/80 px-1.5 py-0.5 text-[10px] text-mute">{ATTRIBUTION}</p>}
       {hover && !inset && (() => {
         const a = ds.applications.find((x) => x.id === hover.id);
         const d = result.decisions[hover.id];
