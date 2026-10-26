@@ -2,26 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root { color-scheme: light; }
 html, body, #root { min-height: 100%; }
-body { @apply bg-ink-950 font-sans text-slate-200 antialiased; }
-::selection { background: #f5b94255; }
-* { scrollbar-width: thin; scrollbar-color: #2a3544 transparent; }
-button:focus-visible, select:focus-visible, input:focus-visible, tr:focus-visible { outline: 2px solid #f5b942; outline-offset: 1px; }
+body { @apply bg-white font-sans text-[16px] leading-normal text-ink antialiased; }
+::selection { background: #3f3bb533; }
+* { scrollbar-width: thin; scrollbar-color: #c8c8c8 transparent; }
+button, select, input { font: inherit; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid #3F3BB5; outline-offset: 2px; }
 
-.bg-grid {
-  background-image: linear-gradient(#1c253133 1px, transparent 1px), linear-gradient(90deg, #1c253133 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
-}
-
-@keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.95; } 100% { transform: scale(4.2); opacity: 0; } }
-.pulse-ring { transform-box: fill-box; transform-origin: center; animation: pulse-ring 1.4s ease-out 4; }
-@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-.fade-in { animation: fade-in 260ms ease-out both; }
-@keyframes row-flash { 0%, 60% { background: #f5b94222; } 100% { background: transparent; } }
+/* A changed pin sends out two rings; the colour is the new outcome. */
+@keyframes ring { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(3.2); opacity: 0; } }
+.pin-ring { transform-box: fill-box; transform-origin: center; animation: ring 1.5s ease-out 3; }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+.pop-in { animation: pop-in 160ms ease-out both; }
+@keyframes sheet-in { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sheet-in { animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes row-flash { 0%, 60% { background: #3f3bb51a; } 100% { background: transparent; } }
 .row-flash { animation: row-flash 2.4s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-ring, .fade-in, .row-flash { animation: none; }
+  .pin-ring, .pop-in, .sheet-in, .row-flash { animation: none; }
+  .pin-ring { display: none; }
 }
