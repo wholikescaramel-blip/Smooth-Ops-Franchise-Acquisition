@@ -3,6 +3,8 @@ import { loadShared } from './state/persist';
 import { ApplicantPanel } from './components/ApplicantPanel';
 import { ChangesCard, ScenarioLog } from './components/ChangesPanel';
 import { GeoMap } from './components/GeoMap';
+import { GoogleMapView } from './components/GoogleMapView';
+import { GOOGLE_MAPS_KEY } from './lib/googleMaps';
 import { LayersMenu } from './components/MapOverlays';
 import { RulesGlance, RulesPanel } from './components/RulesPanel';
 import { PinTiles } from './components/PinTiles';
@@ -50,6 +52,9 @@ function Dashboard() {
   const error = useStore((s) => s.error);
   const [modal, setModal] = useState<ModalKey | null>(null);
   const [showBefore, setShowBefore] = useState(false);
+  // Use Google Maps when a key is set. If Google rejects it, fall back to the built-in map so the app never breaks.
+  const [googleFailed, setGoogleFailed] = useState(false);
+  const useGoogle = !!GOOGLE_MAPS_KEY && !googleFailed;
 
   // A new change always shows its "after" first.
   useEffect(() => setShowBefore(false), [diff]);
@@ -124,7 +129,11 @@ function Dashboard() {
         {/* the map comes first on small screens */}
         <section aria-label="Map of Karnataka" className="relative order-first h-[68vh] min-h-[420px] overflow-hidden rounded-xl shadow-card lg:sticky lg:top-3 lg:order-last lg:h-[calc(100vh-170px)]">
           {view === 'map' ? (
-            <GeoMap ds={ds} result={mapResult} prev={mapPrev} focus={focus} selected={selected} changed={mapChanged} visible={visible} layers={layers} onSelect={select} onFocus={setFocus} />
+            useGoogle ? (
+              <GoogleMapView ds={ds} result={mapResult} prev={mapPrev} focus={focus} selected={selected} changed={mapChanged} visible={visible} layers={layers} onSelect={select} onFocus={setFocus} onFail={() => setGoogleFailed(true)} />
+            ) : (
+              <GeoMap ds={ds} result={mapResult} prev={mapPrev} focus={focus} selected={selected} changed={mapChanged} visible={visible} layers={layers} onSelect={select} onFocus={setFocus} />
+            )
           ) : (
             <PinTiles ds={ds} result={mapResult} selected={selected} onSelect={select} focus={focus} />
           )}
@@ -158,7 +167,7 @@ function Dashboard() {
             </div>
           )}
 
-          {view === 'map' && focus === 'state' && (
+          {view === 'map' && !useGoogle && focus === 'state' && (
             <figure className="absolute right-3 top-[220px] z-10 aspect-square w-[20%] min-w-[130px] max-w-[220px] overflow-hidden rounded-xl bg-white shadow-float">
               <GeoMap ds={ds} result={mapResult} prev={mapPrev} focus="Bengaluru" selected={selected} changed={mapChanged} visible={visible} layers={layers} onSelect={select} inset />
               <figcaption className="absolute left-2 top-2 rounded-full bg-white px-2 py-0.5 text-xs font-semibold shadow-card">Bengaluru, enlarged</figcaption>
